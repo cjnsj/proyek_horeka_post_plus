@@ -10,6 +10,8 @@ class CartPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
+        // ⭐️ PERUBAHAN DI SINI
+        border: Border.all(color: Colors.black, width: 1), // Ditambahkan border hitam
       ),
       child: Column(
         children: [

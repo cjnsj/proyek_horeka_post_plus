@@ -9,16 +9,17 @@ class SideNavRail extends StatelessWidget {
     return Container(
       width: 100,
       height: double.infinity,
-      color: kWhiteColor,
       padding: const EdgeInsets.symmetric(vertical: 24.0),
+      // ⭐️ PERUBAHAN DI SINI: Menambahkan dekorasi kartu
+      decoration: BoxDecoration(
+        color: kWhiteColor,
+        borderRadius: BorderRadius.circular(12), // Samakan dengan kartu lain
+        border: Border.all(color: Colors.black, width: 1), // Border hitam penuh
+      ),
       child: Column(
         children: [
-          // Logo
-          Image.asset(
-            'assets/images/logo.png', // Pastikan path logo "H" benar
-            height: 60,
-          ),
-          const SizedBox(height: 40),
+          // Beri sedikit jarak dari atas
+          const SizedBox(height: 16),
           
           // Tombol Navigasi
           _buildNavIcon(Icons.print_outlined, isSelected: true),

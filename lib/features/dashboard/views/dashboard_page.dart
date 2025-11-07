@@ -22,7 +22,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    // Panggil dialog "Masukkan Saldo Awal" setelah frame pertama selesai di-build
+    // Panggil dialog "Masukkan Saldo Awal"
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showSaldoAwalDialog(context);
     });
@@ -32,7 +32,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void _showSaldoAwalDialog(BuildContext context) {
     showDialog(
       context: context,
-      barrierDismissible: false, // Mencegah dialog ditutup dengan klik di luar
+      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return const SaldoAwalDialog();
       },
@@ -43,81 +43,105 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackgroundColor,
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Side Navigation Rail (Kiri)
-          const SideNavRail(),
-          
-          // Garis pemisah vertikal
-          VerticalDivider(width: 1, color: Colors.grey.shade300),
+      // Seluruh body dibungkus Padding untuk jarak global
+      body: Padding(
+        padding: const EdgeInsets.all(24.0), 
+        // ⭐️ KEMBALI KE LAYOUT COLUMN: Header di atas, Row di bawahnya
+        child: Column( 
+          children: [
+            // 1. KARTU HEADER ATAS (Ini sekarang "full kiri")
+            _buildGlobalTopBar(),
 
-          // 2. Konten Utama (Kanan)
-          Expanded(
-            child: Column(
-              children: [
-                // 2a. Top Bar (Search)
-                _buildTopBar(),
-                
-                // 2b. Area Konten (Menu dan Keranjang)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Menu (Tengah)
-                        const Expanded(
-                          flex: 2,
-                          child: MainContent(),
-                        ),
-                        const SizedBox(width: 24),
-                        // Keranjang (Kanan)
-                        const Expanded(
-                          flex: 1,
-                          child: CartPanel(),
-                        ),
-                      ],
-                    ),
+            // Jarak
+            const SizedBox(height: 24),
+
+            // 2. KONTEN UTAMA (Baris berisi Nav | Menu | Cart)
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 2a. SideNavRail (Sekarang di bawah header)
+                  const SideNavRail(),
+
+                  const SizedBox(width: 24), // Jarak antar kartu
+
+                  // 2b. Panel Menu
+                  const Expanded(
+                    flex: 2,
+                    child: MainContent(),
                   ),
-                ),
-              ],
+
+                  const SizedBox(width: 24),
+
+                  // 2c. Panel Keranjang
+                  const Expanded(
+                    flex: 1,
+                    child: CartPanel(),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // Widget untuk Top Bar (Search)
-  Widget _buildTopBar() {
+  // ⭐️ FUNGSI INI TIDAK DIUBAH SAMA SEKALI
+  Widget _buildGlobalTopBar() {
     return Container(
-      height: 80, // Tinggi AppBar
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+      decoration: BoxDecoration(
         color: kWhiteColor,
-        border: Border(
-          bottom: BorderSide(color: kLightGreyColor, width: 1),
-        ),
+        borderRadius: BorderRadius.circular(12), 
+        border: Border.all(color: Colors.black, width: 1), 
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween, // Logo kiri, Search kanan
         children: [
-          // Search Bar
+          // Kiri: Logo dan Judul
+          Row(
+            children: [
+              Image.asset(
+                'assets/images/logo.png', // Logo "H"
+                height: 40,
+              ),
+              const SizedBox(width: 16),
+              const Text(
+                "Horeka Pos+",
+                style: TextStyle(
+                  color: kDarkTextColor,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          
+          // Kanan: Search Bar
           SizedBox(
             width: 300,
+            height: 40, 
             child: TextField(
               decoration: InputDecoration(
                 hintText: "Find menu",
-                hintStyle: TextStyle(color: Colors.grey.shade500),
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade500),
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                suffixIcon: const Icon(Icons.search, color: kBrandColor), 
                 filled: true,
-                fillColor: kBackgroundColor,
+                fillColor: kWhiteColor,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.black),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.black),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: kBrandColor, width: 1.5), 
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
               ),
             ),
           ),

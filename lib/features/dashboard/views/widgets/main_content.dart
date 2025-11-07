@@ -11,9 +11,11 @@ class MainContent extends StatelessWidget {
         // Panel Konten
         Expanded(
           child: Container(
+            // ⭐️ PERUBAHAN UTAMA DI SINI
             decoration: BoxDecoration(
               color: kWhiteColor,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.black, width: 1), // Ditambahkan border hitam penuh
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,7 +79,7 @@ class MainContent extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
+        side: const BorderSide(color: Colors.black, width: 1), // Ini sudah hitam
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -167,7 +169,7 @@ class MainContent extends StatelessWidget {
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: Colors.grey.shade300),
+              side: const BorderSide(color: Colors.black, width: 1), // Ini sudah hitam
             ),
             padding: const EdgeInsets.symmetric(vertical: 16),
           ),
