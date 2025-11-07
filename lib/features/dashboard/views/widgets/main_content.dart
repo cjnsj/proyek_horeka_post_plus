@@ -69,6 +69,10 @@ class MainContent extends StatelessWidget {
         
         // Tombol Footer
         _buildFooterButtons(),
+
+        // ⭐️ TAMBAHAN DI SINI ⭐️
+        // Memberi jarak 16px di bawah tombol footer
+        const SizedBox(height: 16),
       ],
     );
   }

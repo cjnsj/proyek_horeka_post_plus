@@ -20,16 +20,19 @@ class SideNavRail extends StatelessWidget {
         children: [
           // Beri sedikit jarak dari atas
           const SizedBox(height: 16),
-          
+
           // Tombol Navigasi
           _buildNavIcon(Icons.print_outlined, isSelected: true),
           _buildNavIcon(Icons.description_outlined),
           _buildNavIcon(Icons.tune_outlined), // Ikon 'Settings'
-          
+
           const Spacer(), // Mendorong item ke bawah
-          
           // Tombol Logout
           _buildNavIcon(Icons.logout_outlined),
+
+          // ⭐️ TAMBAHAN DI SINI ⭐️
+          // Memberi jarak 16px di bawah tombol logout
+          const SizedBox(height: 16),
         ],
       ),
     );

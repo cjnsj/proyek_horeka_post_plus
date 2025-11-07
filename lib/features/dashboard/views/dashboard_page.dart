@@ -45,41 +45,52 @@ class _DashboardPageState extends State<DashboardPage> {
       backgroundColor: kBackgroundColor,
       // Seluruh body dibungkus Padding untuk jarak global
       body: Padding(
-        padding: const EdgeInsets.all(24.0), 
-        // ⭐️ KEMBALI KE LAYOUT COLUMN: Header di atas, Row di bawahnya
-        child: Column( 
+        padding: const EdgeInsets.all(24.0),
+        // ⭐️ PERUBAHAN UTAMA: Layout utama tetap Row
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. KARTU HEADER ATAS (Ini sekarang "full kiri")
-            _buildGlobalTopBar(),
-
-            // Jarak
-            const SizedBox(height: 24),
-
-            // 2. KONTEN UTAMA (Baris berisi Nav | Menu | Cart)
+            // 1. KOLOM UTAMA (Kiri & Tengah digabung)
             Expanded(
-              child: Row(
+              flex: 2, // Fleksibilitas gabungan untuk Nav dan Main
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2a. SideNavRail (Sekarang di bawah header)
-                  const SideNavRail(),
+                  // 1a. KARTU HEADER ATAS (Hanya di atas Nav & Main)
+                  _buildGlobalTopBar(),
 
-                  const SizedBox(width: 24), // Jarak antar kartu
+                  // Jarak
+                  const SizedBox(height: 24),
 
-                  // 2b. Panel Menu
-                  const Expanded(
-                    flex: 2,
-                    child: MainContent(),
-                  ),
+                  // 1b. ROW INTERNAL (Untuk Nav & Main agar sejajar)
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 1b-i. SideNavRail
+                        // Tingginya sekarang dibatasi oleh Row internal ini
+                        const SideNavRail(),
 
-                  const SizedBox(width: 24),
+                        const SizedBox(width: 24),
 
-                  // 2c. Panel Keranjang
-                  const Expanded(
-                    flex: 1,
-                    child: CartPanel(),
+                        // 1b-ii. Panel Menu
+                        // Expanded di sini agar mengisi sisa Row internal
+                        const Expanded(
+                          child: MainContent(),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
+            ),
+
+            const SizedBox(width: 24),
+
+            // 2. PANEL KERANJANG (Tetap Full Height)
+            const Expanded(
+              flex: 1,
+              child: CartPanel(),
             ),
           ],
         ),
@@ -93,8 +104,8 @@ class _DashboardPageState extends State<DashboardPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
       decoration: BoxDecoration(
         color: kWhiteColor,
-        borderRadius: BorderRadius.circular(12), 
-        border: Border.all(color: Colors.black, width: 1), 
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black, width: 1),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween, // Logo kiri, Search kanan
@@ -117,16 +128,16 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ],
           ),
-          
+
           // Kanan: Search Bar
           SizedBox(
             width: 300,
-            height: 40, 
+            height: 40,
             child: TextField(
               decoration: InputDecoration(
                 hintText: "Find menu",
                 hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-                suffixIcon: const Icon(Icons.search, color: kBrandColor), 
+                suffixIcon: const Icon(Icons.search, color: kBrandColor),
                 filled: true,
                 fillColor: kWhiteColor,
                 border: OutlineInputBorder(
@@ -139,9 +150,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: kBrandColor, width: 1.5), 
+                  borderSide: const BorderSide(color: kBrandColor, width: 1.5),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
               ),
             ),
           ),
