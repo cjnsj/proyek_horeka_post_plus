@@ -1,4 +1,8 @@
+// Salin dan Gantikan seluruh isi file
+// lib/features/dashboard/views/dashboard_page.dart
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // <--- IMPORT BARU
 import 'package:horeka_post_plus/features/dashboard/views/dialogs/saldo_awal_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/views/widgets/cart_panel.dart';
 import 'package:horeka_post_plus/features/dashboard/views/widgets/main_content.dart';
@@ -98,7 +102,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ⭐️ FUNGSI INI TIDAK DIUBAH SAMA SEKALI
   Widget _buildGlobalTopBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
@@ -108,7 +111,7 @@ class _DashboardPageState extends State<DashboardPage> {
         border: Border.all(color: Colors.black, width: 1),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween, // Logo kiri, Search kanan
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Kiri: Logo dan Judul
           Row(
@@ -121,7 +124,7 @@ class _DashboardPageState extends State<DashboardPage> {
               const Text(
                 "Horeka Pos+",
                 style: TextStyle(
-                  color: kDarkTextColor,
+                  color: kBrandColor,
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
@@ -137,7 +140,13 @@ class _DashboardPageState extends State<DashboardPage> {
               decoration: InputDecoration(
                 hintText: "Find menu",
                 hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-                suffixIcon: const Icon(Icons.search, color: kBrandColor),
+                // PERUBAHAN DI SINI: Menggunakan SVG
+                suffixIcon: Padding(
+                  padding: const EdgeInsets.all(10.0), // Beri sedikit padding
+                  child: SvgPicture.asset(
+                    'assets/icons/search.svg',
+                  ),
+                ),
                 filled: true,
                 fillColor: kWhiteColor,
                 border: OutlineInputBorder(

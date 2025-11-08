@@ -1,4 +1,8 @@
+// Salin dan Gantikan seluruh isi file
+// lib/features/dashboard/views/widgets/cart_panel.dart
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // <--- IMPORT BARU
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_page.dart';
 
 class CartPanel extends StatelessWidget {
@@ -10,8 +14,7 @@ class CartPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
-        // ⭐️ PERUBAHAN DI SINI
-        border: Border.all(color: Colors.black, width: 1), // Ditambahkan border hitam
+        border: Border.all(color: Colors.black, width: 1),
       ),
       child: Column(
         children: [
@@ -25,11 +28,15 @@ class CartPanel extends StatelessWidget {
                   "Cart",
                   style: TextStyle(
                       color: kDarkTextColor,
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: SvgPicture.asset(
+                    'assets/icons/delete.svg',
+                    width: 24,
+                    height: 24,
+                  ),
                   onPressed: () {},
                 ),
               ],
@@ -43,13 +50,14 @@ class CartPanel extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Anda bisa ganti ini ke SVG jika punya
                   Icon(Icons.add_circle_outline,
-                      color: kBrandColor, size: 40),
+                      color: kBrandColor, size: 25),
                   const SizedBox(height: 8),
                   const Text(
                     "New Order",
                     style: TextStyle(
-                        color: kBrandColor,
+                        color: kDarkTextColor,
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -68,6 +76,7 @@ class CartPanel extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
                     onPressed: () {},
+                    // Anda bisa ganti ini ke SVG jika punya
                     icon: const Icon(Icons.local_offer_outlined,
                         color: kBrandColor, size: 16),
                     label: const Text(
@@ -88,35 +97,22 @@ class CartPanel extends StatelessWidget {
 
           // Tombol Bayar
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            // ⭐️ PERUBAHAN 1: Tambahkan padding horizontal DI LUAR
+            padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
             child: Row(
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade600,
-                      foregroundColor: kWhiteColor,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text("Save Queue"),
-                  ),
+                // Tombol "Save Queue"
+                _buildFooterButton(
+                  "Save Queue",
+                  backgroundColor: Colors.grey.shade600,
+                  textColor: kWhiteColor,
                 ),
                 const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kBrandColor,
-                      foregroundColor: kWhiteColor,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text("Pay Now"),
-                  ),
+                // Tombol "Pay Now"
+                _buildFooterButton(
+                  "Pay Now",
+                  backgroundColor: kBrandColor,
+                  textColor: kWhiteColor,
                 ),
               ],
             ),
@@ -126,6 +122,58 @@ class CartPanel extends StatelessWidget {
     );
   }
 
+  // Fungsi ini meniru style 3D dari tombol "Void Mode"
+  Widget _buildFooterButton(
+    String text, {
+    required Color backgroundColor,
+    required Color textColor,
+    bool pressed = false,
+  }) {
+    // Logika shadow 3D
+    final List<BoxShadow> boxShadow = pressed
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 1,
+              offset: const Offset(0, 1),
+            )
+          ]
+        : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.7),
+              blurRadius: 1,
+              // ⭐️ PERBAIKAN: Offset diubah ke 2 untuk efek 3D
+              offset: const Offset(0, 2), 
+            )
+          ];
+
+    return Expanded(
+      child: InkWell(
+        onTap: () {},
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          // ⭐️ PERUBAHAN 2: Hapus padding horizontal, kurangi padding vertikal
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: boxShadow,
+          ),
+          child: Center(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.bold, // Dibuat BOLD
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Fungsi _buildTotalRow tidak berubah
   Widget _buildTotalRow(String title, String amount, {bool isTotal = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),

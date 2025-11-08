@@ -1,3 +1,6 @@
+// Salin dan Gantikan seluruh isi file
+// lib/features/dashboard/views/widgets/main_content.dart
+
 import 'package:flutter/material.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_page.dart';
 
@@ -11,11 +14,10 @@ class MainContent extends StatelessWidget {
         // Panel Konten
         Expanded(
           child: Container(
-            // ⭐️ PERUBAHAN UTAMA DI SINI
             decoration: BoxDecoration(
               color: kWhiteColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black, width: 1), // Ditambahkan border hitam penuh
+              border: Border.all(color: Colors.black, width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,10 +52,10 @@ class MainContent extends StatelessWidget {
                     child: GridView.builder(
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4, // Sesuaikan jumlah kolom
+                        crossAxisCount: 5,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
-                        childAspectRatio: 0.8,
+                        childAspectRatio: 0.9,
                       ),
                       itemCount: 1, // Hanya 1 item "Mie"
                       itemBuilder: (context, index) {
@@ -70,7 +72,6 @@ class MainContent extends StatelessWidget {
         // Tombol Footer
         _buildFooterButtons(),
 
-        // ⭐️ TAMBAHAN DI SINI ⭐️
         // Memberi jarak 16px di bawah tombol footer
         const SizedBox(height: 16),
       ],
@@ -83,7 +84,7 @@ class MainContent extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.black, width: 1), // Ini sudah hitam
+        side: const BorderSide(color: Colors.black, width: 1),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -95,7 +96,6 @@ class MainContent extends StatelessWidget {
                 Container(
                   decoration: const BoxDecoration(
                     image: DecorationImage(
-                      // GANTI DENGAN GAMBAR MIE ANDA NANTI
                       image: AssetImage('assets/images/Rectangle 5.png'),
                       fit: BoxFit.cover,
                     ),
@@ -161,23 +161,54 @@ class MainContent extends StatelessWidget {
     );
   }
 
-  Widget _buildFooterButton(String text) {
+  Widget _buildFooterButton(String text, {bool pressed = false}) {
+    final Color bgColor = pressed ? const Color(0xFFEFEFEF) : kWhiteColor;
+    
+    final List<BoxShadow> boxShadow = pressed
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 1,
+              offset: const Offset(0, 1),
+            )
+          ]
+        : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.7),
+              blurRadius: 1,
+              offset: const Offset(0, 2), // Shadow 3D
+            )
+          ];
+
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        child: ElevatedButton(
-          onPressed: () {},
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kWhiteColor,
-            foregroundColor: kDarkTextColor,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
+        // ⭐️ PERUBAHAN DI SINI ⭐️
+        // Kita tambahkan padding horizontal yang lebih besar (misal 16)
+        // 4.0 (spasi antar tombol) + 12.0 (padding tambahan) = 16.0
+        padding: const EdgeInsets.symmetric(horizontal: 16.0), // Diubah dari 4.0
+        child: InkWell(
+          onTap: () {
+            // Logika klik bisa ditambahkan di sini
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: bgColor,
               borderRadius: BorderRadius.circular(8),
-              side: const BorderSide(color: Colors.black, width: 1), // Ini sudah hitam
+              border: Border.all(color: Colors.black, width: 1),
+              boxShadow: boxShadow,
             ),
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: pressed ? kDarkTextColor.withOpacity(0.7) : kDarkTextColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
-          child: Text(text),
         ),
       ),
     );
