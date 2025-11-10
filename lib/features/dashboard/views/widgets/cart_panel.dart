@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // <--- IMPORT BARU
+
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_page.dart';
 
 class CartPanel extends StatelessWidget {
@@ -14,7 +15,8 @@ class CartPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black, width: 1),
+        // Border abu-abu
+        border: Border.all(color: kBorderColor, width: 1),
       ),
       child: Column(
         children: [
@@ -42,7 +44,8 @@ class CartPanel extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
+          // Garis Divider abu-abu
+          const Divider(height: 1, color: kBorderColor),
 
           // Konten Keranjang (Kosong)
           Expanded(
@@ -50,7 +53,6 @@ class CartPanel extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Anda bisa ganti ini ke SVG jika punya
                   Icon(Icons.add_circle_outline,
                       color: kBrandColor, size: 25),
                   const SizedBox(height: 8),
@@ -71,17 +73,32 @@ class CartPanel extends StatelessWidget {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Discount Button
+                // Discount/Promo Code Button
                 Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () {},
-                    // Anda bisa ganti ini ke SVG jika punya
-                    icon: const Icon(Icons.local_offer_outlined,
-                        color: kBrandColor, size: 16),
-                    label: const Text(
-                      "Discount",
-                      style: TextStyle(color: kBrandColor),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), // Padding di sekitar TextButton
+                    decoration: BoxDecoration(
+                      color: kWhiteColor, // Latar belakang putih
+                      borderRadius: BorderRadius.circular(8), // Sudut membulat
+                      border: Border.all(color: kBorderColor, width: 1), // Outline abu-abu
+                    ),
+                    child: TextButton.icon(
+                      onPressed: () {},
+                      icon: SvgPicture.asset(
+                        'assets/icons/promocode.svg',
+                        width: 16,
+                        height: 16,
+                      ),
+                      label: const Text(
+                        "Promo Code", // Mengganti "Discount" menjadi "Promo Code"
+                        style: TextStyle(color: kDarkTextColor),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero, // Menghilangkan padding default TextButton
+                        minimumSize: Size.zero, // Mengurangi ukuran minimum
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Membuat area tap sesuai konten
+                      ),
                     ),
                   ),
                 ),
@@ -97,7 +114,7 @@ class CartPanel extends StatelessWidget {
 
           // Tombol Bayar
           Padding(
-            // ⭐️ PERUBAHAN 1: Tambahkan padding horizontal DI LUAR
+            // Padding luar untuk merampingkan tombol
             padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
             child: Row(
               children: [
@@ -142,7 +159,6 @@ class CartPanel extends StatelessWidget {
             BoxShadow(
               color: Colors.black.withOpacity(0.7),
               blurRadius: 1,
-              // ⭐️ PERBAIKAN: Offset diubah ke 2 untuk efek 3D
               offset: const Offset(0, 2), 
             )
           ];
@@ -152,7 +168,7 @@ class CartPanel extends StatelessWidget {
         onTap: () {},
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          // ⭐️ PERUBAHAN 2: Hapus padding horizontal, kurangi padding vertikal
+          // Padding dalam untuk tinggi tombol
           padding: const EdgeInsets.symmetric(vertical: 12.0),
           decoration: BoxDecoration(
             color: backgroundColor,

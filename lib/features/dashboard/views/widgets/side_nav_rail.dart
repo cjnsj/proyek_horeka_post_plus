@@ -3,39 +3,44 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+// ⭐️ PERUBAHAN 1: Import dashboard_page.dart untuk kBorderColor ⭐️
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_page.dart';
 
 class SideNavRail extends StatelessWidget {
   const SideNavRail({super.key});
 
-  // Ukuran default untuk semua ikon
-  static const double _iconSize = 25.0;
+  // ⭐️ 1. KONTROL UKURAN IKON DARI SINI ⭐️
+  // Ubah nilai 30.0 ini untuk mengubah ukuran semua ikon
+  static const double _iconSize = 27.0;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100,
+      width: 75,
       height: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24.0),
+      // Padding Anda untuk mengatur posisi 'Logout'
+      padding: const EdgeInsets.only(top: 24.0, bottom: 8.0),
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black, width: 1),
+        // ⭐️ PERUBAHAN 2: Menggunakan kBorderColor ⭐️
+        border: Border.all(color: kBorderColor, width: 1), // Diubah dari Colors.black
       ),
       child: Column(
         children: [
-          // Jarak dari atas
+          // Jarak dari atas (Sesuai kode Anda)
           const SizedBox(height: 64), 
 
           // Tombol Navigasi
           _buildNavIcon('assets/icons/print.svg'),
           _buildNavIcon('assets/icons/document.svg'),
           
-          // Kita berikan ukuran khusus yang lebih kecil untuk 'settings'
-          _buildNavIcon('assets/icons/settings.svg', customSize: 20.0), // <--- Dikecilkan
+          // Ikon 'settings' secara visual lebih lebar, jadi kita kecilkan sedikit
+          _buildNavIcon('assets/icons/settings.svg', customSize: 21.0),
 
           const Spacer(), // Mendorong item ke bawah
           Container(
+            // Margin (Sesuai kode Anda)
             margin: const EdgeInsets.only(top: 34.0, bottom: 0.0), 
             padding: const EdgeInsets.all(12.0),
             decoration: BoxDecoration(
@@ -44,8 +49,8 @@ class SideNavRail extends StatelessWidget {
             ),
             child: SvgPicture.asset(
               'assets/icons/logout.svg',
-              width: _iconSize, // <--- Tetap 30
-              height: _iconSize, // <--- Tetap 30
+              width: _iconSize,
+              height: _iconSize,
             ),
           ),
           
@@ -54,8 +59,6 @@ class SideNavRail extends StatelessWidget {
     );
   }
 
-  // ⭐️ PERUBAHAN DI SINI ⭐️
-  // Fungsi ini diubah untuk menerima 'customSize'
   Widget _buildNavIcon(String svgAsset, {bool isSelected = false, double? customSize}) {
     
     // Gunakan customSize jika ada, jika tidak, pakai _iconSize
@@ -70,7 +73,6 @@ class SideNavRail extends StatelessWidget {
       ),
       child: SvgPicture.asset(
         svgAsset,
-        // ⭐️ Menggunakan 'size' ⭐️
         width: size,
         height: size,
       ),

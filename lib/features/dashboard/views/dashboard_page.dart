@@ -15,6 +15,9 @@ const kWhiteColor = Colors.white;
 const kLightGreyColor = Color(0xFFEFEFEF);
 const kDarkTextColor = Color(0xFF333333);
 
+// ⭐️ PERUBAHAN 1: Menambahkan warna border baru "agak bening" ⭐️
+const kBorderColor = Color(0xFFE0E0E0); // Ini adalah Colors.grey.shade300
+
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -47,10 +50,11 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackgroundColor,
+      // ⭐️ PERUBAHAN 2: Menambahkan layout statis (hardcode)
+      resizeToAvoidBottomInset: false,
       // Seluruh body dibungkus Padding untuk jarak global
       body: Padding(
         padding: const EdgeInsets.all(24.0),
-        // ⭐️ PERUBAHAN UTAMA: Layout utama tetap Row
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -108,7 +112,8 @@ class _DashboardPageState extends State<DashboardPage> {
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black, width: 1),
+        // ⭐️ PERUBAHAN 3: Menggunakan kBorderColor ⭐️
+        border: Border.all(color: kBorderColor, width: 1),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -151,11 +156,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 fillColor: kWhiteColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black),
+                  // ⭐️ PERUBAHAN 4: Menggunakan kBorderColor ⭐️
+                  borderSide: const BorderSide(color: kBorderColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black),
+                  // ⭐️ PERUBAHAN 5: Menggunakan kBorderColor ⭐️
+                  borderSide: const BorderSide(color: kBorderColor),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),

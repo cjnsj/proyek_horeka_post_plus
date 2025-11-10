@@ -2,6 +2,7 @@
 // lib/features/dashboard/views/widgets/main_content.dart
 
 import 'package:flutter/material.dart';
+// ⭐️ PERUBAHAN 1: Import dashboard_page.dart untuk kBorderColor ⭐️
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_page.dart';
 
 class MainContent extends StatelessWidget {
@@ -17,7 +18,8 @@ class MainContent extends StatelessWidget {
             decoration: BoxDecoration(
               color: kWhiteColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black, width: 1),
+              // ⭐️ PERUBAHAN 2: Menggunakan kBorderColor ⭐️
+              border: Border.all(color: kBorderColor, width: 1), // Diubah dari Colors.black
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,7 +86,8 @@ class MainContent extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.black, width: 1),
+        // ⭐️ PERUBAHAN 3: Menggunakan kBorderColor ⭐️
+        side: const BorderSide(color: kBorderColor, width: 1), // Diubah dari Colors.black
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -182,7 +185,6 @@ class MainContent extends StatelessWidget {
 
     return Expanded(
       child: Padding(
-        // ⭐️ PERUBAHAN DI SINI ⭐️
         // Kita tambahkan padding horizontal yang lebih besar (misal 16)
         // 4.0 (spasi antar tombol) + 12.0 (padding tambahan) = 16.0
         padding: const EdgeInsets.symmetric(horizontal: 16.0), // Diubah dari 4.0
@@ -196,7 +198,8 @@ class MainContent extends StatelessWidget {
             decoration: BoxDecoration(
               color: bgColor,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.black, width: 1),
+              // ⭐️ PERUBAHAN 4: Menggunakan kBorderColor ⭐️
+              border: Border.all(color: kBorderColor, width: 1), // Diubah dari Colors.black
               boxShadow: boxShadow,
             ),
             child: Center(
