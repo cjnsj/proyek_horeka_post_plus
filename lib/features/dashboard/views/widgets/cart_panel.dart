@@ -4,7 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // <--- IMPORT BARU
 
-import 'package:horeka_post_plus/features/dashboard/views/dashboard_page.dart';
+// ⭐️ PERUBAHAN: Ganti import 'dashboard_page.dart' dengan 'dashboard_constants.dart' ⭐️
+import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
 
 class CartPanel extends StatelessWidget {
   const CartPanel({super.key});

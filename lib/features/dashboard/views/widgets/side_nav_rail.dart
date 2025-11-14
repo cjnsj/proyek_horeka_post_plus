@@ -3,14 +3,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-// ⭐️ PERUBAHAN 1: Import dashboard_page.dart untuk kBorderColor ⭐️
-import 'package:horeka_post_plus/features/dashboard/views/dashboard_page.dart';
+import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
+import 'package:horeka_post_plus/features/dashboard/views/pages/sales_report_page.dart';
+import 'package:horeka_post_plus/features/dashboard/views/pages/printer_settings_page.dart';
 
 class SideNavRail extends StatelessWidget {
   const SideNavRail({super.key});
 
-  // ⭐️ 1. KONTROL UKURAN IKON DARI SINI ⭐️
-  // Ubah nilai 30.0 ini untuk mengubah ukuran semua ikon
   static const double _iconSize = 27.0;
 
   @override
@@ -18,29 +17,47 @@ class SideNavRail extends StatelessWidget {
     return Container(
       width: 75,
       height: double.infinity,
-      // Padding Anda untuk mengatur posisi 'Logout'
       padding: const EdgeInsets.only(top: 24.0, bottom: 8.0),
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
-        // ⭐️ PERUBAHAN 2: Menggunakan kBorderColor ⭐️
-        border: Border.all(color: kBorderColor, width: 1), // Diubah dari Colors.black
+        border: Border.all(color: kBorderColor, width: 1),
       ),
       child: Column(
         children: [
-          // Jarak dari atas (Sesuai kode Anda)
           const SizedBox(height: 64), 
 
           // Tombol Navigasi
-          _buildNavIcon('assets/icons/print.svg'),
-          _buildNavIcon('assets/icons/document.svg'),
+          _buildNavIcon(
+            'assets/icons/print.svg',
+            onTap: () {
+              // TODO: Tentukan navigasi untuk tombol "Print"
+            }
+          ),
           
-          // Ikon 'settings' secara visual lebih lebar, jadi kita kecilkan sedikit
-          _buildNavIcon('assets/icons/settings.svg', customSize: 21.0),
-
+          // ⭐️ 2. TAMBAHKAN AKSI ONTAP DI SINI ⭐️
+          _buildNavIcon(
+            'assets/icons/document.svg', // Ikon Laporan
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SalesReportPage()),
+              );
+            }
+          ),
+          
+          _buildNavIcon(
+            'assets/icons/settings.svg',
+            customSize: 21.0,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PrinterSettingsPage()),
+              );
+            }
+          ),
           const Spacer(), // Mendorong item ke bawah
           Container(
-            // Margin (Sesuai kode Anda)
             margin: const EdgeInsets.only(top: 34.0, bottom: 0.0), 
             padding: const EdgeInsets.all(12.0),
             decoration: BoxDecoration(
@@ -59,22 +76,31 @@ class SideNavRail extends StatelessWidget {
     );
   }
 
-  Widget _buildNavIcon(String svgAsset, {bool isSelected = false, double? customSize}) {
+  // ⭐️ 3. MODIFIKASI FUNGSI INI AGAR BISA DI-KLIK ⭐️
+  Widget _buildNavIcon(String svgAsset, {
+    bool isSelected = false, 
+    double? customSize,
+    VoidCallback? onTap, // Tambahkan parameter onTap
+  }) {
     
-    // Gunakan customSize jika ada, jika tidak, pakai _iconSize
     final double size = customSize ?? _iconSize;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16.0),
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: isSelected ? kBrandColor.withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: SvgPicture.asset(
-        svgAsset,
-        width: size,
-        height: size,
+    // Bungkus dengan InkWell agar bisa di-klik
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10), // Untuk efek ripple
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 16.0),
+        padding: const EdgeInsets.all(12.0),
+        decoration: BoxDecoration(
+          color: isSelected ? kBrandColor.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: SvgPicture.asset(
+          svgAsset,
+          width: size,
+          height: size,
+        ),
       ),
     );
   }
