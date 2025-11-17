@@ -14,7 +14,8 @@ class PinKasirDialog extends StatefulWidget {
 }
 
 class _PinKasirDialogState extends State<PinKasirDialog> {
-  final List<TextEditingController> _controllers = List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _controllers =
+      List.generate(4, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
 
   @override
@@ -24,6 +25,10 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
       _controllers[i].addListener(() {
         if (_controllers[i].text.length == 1 && i < 3) {
           FocusScope.of(context).requestFocus(_focusNodes[i + 1]);
+        }
+        // Jika digit ke-4 diisi, gabungkan dan lanjutkan
+        if (_controllers[i].text.length == 1 && i == 3) {
+          _submitPin();
         }
       });
     }
@@ -43,6 +48,50 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
     super.dispose();
   }
 
+  // Helper untuk mengambil PIN
+  String _getFullPin() {
+    return _controllers.map((controller) => controller.text).join();
+  }
+
+  // Helper untuk menampilkan error
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  // Helper untuk submit
+  void _submitPin() {
+    final pin = _getFullPin();
+
+    // Validasi PIN
+    if (pin.length != 4) {
+      _showError("Please enter all 4 PIN digits.");
+      // Fokuskan kembali ke input pertama yang kosong
+      for (int i = 0; i < 4; i++) {
+        if (_controllers[i].text.isEmpty) {
+          FocusScope.of(context).requestFocus(_focusNodes[i]);
+          break;
+        }
+      }
+      return;
+    }
+
+    // 1. Tutup dialog PIN ini
+    Navigator.of(context).pop();
+
+    // 2. Panggil SaldoAwalDialog DAN KIRIM PIN
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: const Color(0xFF4C45B5).withOpacity(0.4),
+      builder: (BuildContext dialogContext) {
+        // PASS THE PIN
+        return SaldoAwalDialog(operatorPin: pin);
+      },
+    );
+  }
+
   Widget _buildPinBox(int index) {
     return Container(
       width: 55,
@@ -55,7 +104,7 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
             color: Colors.black.withOpacity(0.2),
             blurRadius: 8,
             spreadRadius: 1,
-            offset: const Offset(0, 4), 
+            offset: const Offset(0, 4),
           )
         ],
       ),
@@ -74,26 +123,25 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
               LengthLimitingTextInputFormatter(1),
             ],
             style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: kDarkTextColor,
-              height: 1.1 
-            ),
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: kDarkTextColor,
+                height: 1.1),
             decoration: InputDecoration(
               filled: true,
-              fillColor: Colors.transparent, 
-              border: InputBorder.none, 
+              fillColor: Colors.transparent,
+              border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
-              contentPadding: const EdgeInsets.only(bottom: 12.0), 
+              contentPadding: const EdgeInsets.only(bottom: 12.0),
             ),
           ),
           Positioned(
-            bottom: 12, 
+            bottom: 12,
             child: Container(
-              width: 25, 
-              height: 2, 
-              color: Colors.grey.shade400, 
+              width: 25,
+              height: 2,
+              color: Colors.grey.shade400,
             ),
           ),
         ],
@@ -138,30 +186,9 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
               ],
             ),
             const SizedBox(height: 24),
-
             InkWell(
-              onTap: () {
-                // TODO: Tambahkan logika validasi PIN di sini
-                
-                // 1. Tutup dialog PIN ini
-                Navigator.of(context).pop(); 
-
-                // ===========================================
-                // ⭐️ PERBAIKANNYA ADA DI SINI ⭐️
-                // ===========================================
-                showDialog(
-                  context: context,
-                  barrierDismissible: false, 
-                  
-                  // ⭐️ TAMBAHKAN BARIS INI UNTUK OVERLAY UNGU ⭐️
-                  barrierColor: const Color(0xFF4C45B5).withOpacity(0.4),
-
-                  builder: (BuildContext dialogContext) {
-                    return const SaldoAwalDialog();
-                  },
-                );
-                // ===========================================
-              },
+              onTap:
+                  _submitPin, // Panggil fungsi submit saat tombol "Enter" ditekan
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 width: double.infinity,
@@ -171,9 +198,9 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: kBrandColor.withOpacity(0.5), 
+                      color: kBrandColor.withOpacity(0.5),
                       blurRadius: 8,
-                      offset: const Offset(0, 4), 
+                      offset: const Offset(0, 4),
                     )
                   ],
                 ),

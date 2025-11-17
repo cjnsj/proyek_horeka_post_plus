@@ -6,9 +6,15 @@ abstract class AuthPageEvent extends Equatable {
   List<Object> get props => [];
 }
 
-// Event saat tombol 'Start' di welcome screen ditekan
-class StartPressed extends AuthPageEvent {}
+class CheckActivationStatus extends AuthPageEvent {}
 
-// Event internal untuk BLoC, dipicu oleh Timer
-// (Kita buat publik karena tidak lagi menggunakan 'part of')
+class ActivatePressed extends AuthPageEvent {
+  final String activationCode;
+
+  const ActivatePressed(this.activationCode); // <-- Kembalikan seperti ini
+
+  @override
+  List<Object> get props => [activationCode];
+}
+
 class NextBackgroundTriggered extends AuthPageEvent {}

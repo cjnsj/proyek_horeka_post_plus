@@ -2,18 +2,19 @@
 // lib/features/dashboard/views/dashboard_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart'; // <-- IMPORT BLOC
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
-
-// ⭐️ PERUBAHAN 1: Hapus import 'saldo_awal_dialog.dart'
-// import 'package:horeka_post_plus/features/dashboard/views/dialogs/saldo_awal_dialog.dart';
-
-// ⭐️ PERUBAHAN 2: Tambahkan import untuk dialog PIN baru
 import 'package:horeka_post_plus/features/dashboard/views/dialogs/pin_kasir_dialog.dart';
-
 import 'package:horeka_post_plus/features/dashboard/views/widgets/cart_panel.dart';
 import 'package:horeka_post_plus/features/dashboard/views/widgets/main_content.dart';
 import 'package:horeka_post_plus/features/dashboard/views/widgets/side_nav_rail.dart';
+
+// --- IMPORT BARU UNTUK MENU BLOC ---
+import 'package:horeka_post_plus/features/dashboard/controllers/menu_bloc/menu_bloc.dart';
+import 'package:horeka_post_plus/features/dashboard/controllers/menu_bloc/menu_event.dart';
+import 'package:horeka_post_plus/features/dashboard/services/menu_api_service.dart';
+// --- AKHIR IMPORT BARU ---
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -26,24 +27,17 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    // ⭐️ PERUBAHAN 3: Panggil dialog PIN
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showPinKasirDialog(context); // <-- Nama fungsi diubah
+      _showPinKasirDialog(context); 
     });
   }
-
-  // ⭐️ PERUBAHAN 4: Fungsi ini sekarang memanggil PinKasirDialog
-  // dan menambahkan barrierColor sesuai permintaan Anda
+  
   void _showPinKasirDialog(BuildContext context) {
     showDialog(
       context: context,
-      barrierDismissible: false, // <-- Memenuhi Request 3 (tidak bisa diklik)
-      // ⭐️ PERUBAHAN 5: Menambahkan warna overlay (barrier)
-      // Ini memenuhi Request 2
+      barrierDismissible: false, 
       barrierColor: const Color(0xFF4C45B5).withOpacity(0.4),
-
       builder: (BuildContext dialogContext) {
-        // ⭐️ PERUBAHAN 6: Ganti SaldoAwalDialog dengan PinKasirDialog
         return const PinKasirDialog();
       },
     );
@@ -51,45 +45,53 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBackgroundColor,
-      resizeToAvoidBottomInset: false,
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. KOLOM UTAMA (Kiri & Tengah digabung)
-            Expanded(
-              flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 1a. KARTU HEADER ATAS
-                  _buildGlobalTopBar(),
+    // --- DI SINILAH KITA MENYEDIAKAN BLOC ---
+    return BlocProvider(
+      // Kita buat MenuBloc di sini
+      // dan langsung memicu event FetchMenuEvent
+      // agar menu dimuat secara otomatis.
+      create: (context) => MenuBloc(apiService: MenuApiService())
+        ..add(FetchMenuEvent()),
+      child: Scaffold(
+        backgroundColor: kBackgroundColor,
+        resizeToAvoidBottomInset: false,
+        body: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. KOLOM UTAMA (Kiri & Tengah digabung)
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1a. KARTU HEADER ATAS
+                    _buildGlobalTopBar(),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // 1b. ROW INTERNAL (Nav & Main)
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SideNavRail(),
-                        const SizedBox(width: 24),
-                        const Expanded(child: MainContent()),
-                      ],
+                    // 1b. ROW INTERNAL (Nav & Main)
+                    const Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SideNavRail(),
+                          SizedBox(width: 24),
+                          Expanded(child: MainContent()),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(width: 24),
+              const SizedBox(width: 24),
 
-            // 2. PANEL KERANJANG
-            const Expanded(flex: 1, child: CartPanel()),
-          ],
+              // 2. PANEL KERANJANG
+              const Expanded(flex: 1, child: CartPanel()),
+            ],
+          ),
         ),
       ),
     );

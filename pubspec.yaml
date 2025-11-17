@@ -38,6 +38,15 @@ dependencies:
   equatable: ^2.0.5  # (atau versi terbaru)
   flutter_svg: ^2.0.10 # (atau versi terbaru)
 
+  # TAMBAHKAN DUA BARIS INI
+  http: ^1.2.1 # (atau versi terbaru)
+  shared_preferences: ^2.2.3 # (atau versi terbaru)
+
+  # TAMBAHKAN BARIS INI
+  device_info_plus: ^10.1.0 # (atau versi terbaru)
+
+  uuid: ^4.4.0 # (atau versi terbaru)
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -2,6 +2,7 @@
 // lib/features/dashboard/views/widgets/main_content.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart'; 
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
 import 'package:horeka_post_plus/features/dashboard/views/pages/void_mode_page.dart';
@@ -9,117 +10,209 @@ import 'package:horeka_post_plus/features/dashboard/views/pages/print_receipt_pa
 import 'package:horeka_post_plus/features/dashboard/views/dialogs/expense_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/views/pages/queue_list_page.dart';
 
+import 'package:horeka_post_plus/features/dashboard/controllers/menu_bloc/menu_bloc.dart';
+import 'package:horeka_post_plus/features/dashboard/controllers/menu_bloc/menu_state.dart';
+
 class MainContent extends StatelessWidget {
   const MainContent({super.key});
 
+  // Base URL untuk gambar (dari API Anda)
+  final String _imageBaseUrl = "http://192.168.1.15:3001";
+
   @override
   Widget build(BuildContext context) {
-    // Pengaturan Grid (biarkan)
     const int columns = 4;
-    const double cardAspectRatio = 1.3;
+    
+    // Menggunakan rasio aspek 1.2 (sedikit lebih tinggi)
+    const double cardAspectRatio = 1.2; 
 
     return Column(
       children: [
-        // Panel Konten
         Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: kWhiteColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kBorderColor, width: 1),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Tab "Makanan"
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.only(top: 8.0),
-                  decoration: const BoxDecoration(
-                    color: kBrandColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(11),
-                      topRight: Radius.circular(11),
+          child: BlocBuilder<MenuBloc, MenuState>(
+            builder: (context, state) {
+              if (state is MenuLoading || state is MenuInitial) {
+                return Container(
+                    decoration: BoxDecoration(
+                      color: kWhiteColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: kBorderColor, width: 1),
+                    ),
+                    child: const Center(child: CircularProgressIndicator()));
+              }
+
+              if (state is MenuError) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: kWhiteColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: kBorderColor, width: 1),
+                  ),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Failed to load menu: ${state.message}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red),
+                      ),
                     ),
                   ),
+                );
+              }
+
+              if (state is MenuLoaded) {
+                if (state.products.isEmpty) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: kWhiteColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: kBorderColor, width: 1),
+                    ),
+                    child: const Center(
+                      child: Text("No menu items available."),
+                    ),
+                  );
+                }
+
+                return Container(
+                  decoration: BoxDecoration(
+                    color: kWhiteColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: kBorderColor, width: 1),
+                  ),
+                  clipBehavior: Clip.antiAlias,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(left: 16.0),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 10,
-                        ),
+                        width: double.infinity,
+                        padding: const EdgeInsets.only(top: 8.0),
                         decoration: const BoxDecoration(
-                          color: kWhiteColor,
+                          color: kBrandColor,
                           borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(10),
-                            topRight: Radius.circular(10),
+                            topLeft: Radius.circular(11),
+                            topRight: Radius.circular(11),
                           ),
                         ),
-                        child: const Text(
-                          "Makanan",
-                          style: TextStyle(
-                            color: kDarkTextColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(left: 16.0),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 10,
+                              ),
+                              decoration: const BoxDecoration(
+                                color: kWhiteColor,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(10),
+                                  topRight: Radius.circular(10),
+                                ),
+                              ),
+                              child: const Text(
+                                "All Menu",
+                                style: TextStyle(
+                                  color: kDarkTextColor,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(
+                          height: 1, thickness: 1, color: kBorderColor),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: GridView.builder(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: columns,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                              childAspectRatio: cardAspectRatio,
+                            ),
+                            itemCount: state.products.length,
+                            itemBuilder: (context, index) {
+                              final product = state.products[index];
+                              return _buildProductCard(product);
+                            },
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
+                );
+              }
 
-                // Outline di bawah tab
-                const Divider(height: 1, thickness: 1, color: kBorderColor),
-
-                // Grid Menu
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: cardAspectRatio,
-                          ),
-                      itemCount: 1,
-                      itemBuilder: (context, index) {
-                        return _buildProductCard();
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              return const Center(child: Text("Unknown state."));
+            },
           ),
         ),
-
-        // ⭐️ 2. KIRIM CONTEXT KE FUNGSI INI ⭐️
-        _buildFooterButtons(context), // Kirim context
-        // Memberi jarak 16px di bawah tombol footer
+        _buildFooterButtons(context),
         const SizedBox(height: 16),
       ],
     );
   }
 
-  // KARTU PRODUK (Tidak berubah)
-  Widget _buildProductCard() {
+  // --- FUNGSI _buildProductCard SESUAI KODE YANG ANDA BERIKAN ---
+  Widget _buildProductCard(dynamic product) {
+    final String productName = product['name'] ?? 'Produk';
+    final String productPrice = product['price']?.toString() ?? '0';
+    
+    // Asumsikan key-nya 'image_url'
+    final String? imagePath = product['image_url']; 
+    
+    String fullImageUrl = '';
+    
+    if (imagePath != null && imagePath.isNotEmpty) {
+      // Ganti backslash (\) menjadi forward slash (/)
+      final String cleanPath = imagePath.replaceAll(r'\', '/');
+      
+      // Tambahkan '/' secara manual di antara base URL dan path
+      fullImageUrl = '$_imageBaseUrl/$cleanPath';
+    }
+    
+    Widget imageWidget;
+    if (fullImageUrl.isEmpty) {
+      // Jika tidak ada URL, gunakan placeholder
+      imageWidget = Image.asset(
+        'assets/images/nodata.png', // Gambar dummy/placeholder
+        fit: BoxFit.cover,
+      );
+    } else {
+      // Jika ada URL, coba muat dari jaringan
+      imageWidget = Image.network(
+        fullImageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child; 
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        },
+        errorBuilder: (context, error, stackTrace) {
+          // Kita sudah print dari log, tapi ini baik untuk safety
+          print("Gagal memuat gambar: $fullImageUrl, Error: $error");
+          return Image.asset(
+            'assets/images/nodata.png', // Gambar dummy/placeholder
+            fit: BoxFit.cover,
+          );
+        },
+      );
+    }
+
+    // Menggunakan desain Card dari kode yang Anda berikan
     return Card(
-      elevation: 2.0,
+      elevation: 2.0, // <-- Desain bayangan Anda
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(
-            'assets/images/Rectangle 5.png', // Ganti dengan path gambar Mie
-            fit: BoxFit.cover,
-          ),
+          imageWidget,
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -137,7 +230,7 @@ class MainContent extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.65),
+                color: Colors.black.withOpacity(0.65), // <-- Desain kontainer teks Anda
                 borderRadius: BorderRadius.circular(10.0),
               ),
               child: Row(
@@ -150,18 +243,19 @@ class MainContent extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          "Mie",
-                          style: TextStyle(
+                          productName,
+                          style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: 16, 
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 2, 
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          "Rp.18.000,00",
-                          style: TextStyle(
+                          "Rp. $productPrice",
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.normal,
@@ -171,9 +265,9 @@ class MainContent extends StatelessWidget {
                       ],
                     ),
                   ),
-                  SvgPicture.asset(
-                    'assets/icons/tambah.svg', // Pastikan path ini benar
-                    width: 18, // Ukuran diubah agar mudah di-tap
+                  SvgPicture.asset( // <-- Desain tombol tambah Anda
+                    'assets/icons/tambah.svg',
+                    width: 18,
                     height: 18,
                   ),
                 ],
@@ -184,20 +278,18 @@ class MainContent extends StatelessWidget {
       ),
     );
   }
+  // --- AKHIR FUNGSI _buildProductCard ---
 
 
   Widget _buildFooterButtons(BuildContext context) {
-    // Terima context
     return Padding(
       padding: const EdgeInsets.only(top: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Tombol "Void Mode" sekarang punya aksi
           _buildFooterButton(
             "Void Mode",
             onPressed: () {
-              // Navigasi ke halaman baru
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const VoidModePage()),
@@ -207,7 +299,6 @@ class MainContent extends StatelessWidget {
           _buildFooterButton(
             "Print Receipt",
             onPressed: () {
-              // ⭐️ NAVIGASI BARU DITAMBAHKAN DI SINI ⭐️
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -219,7 +310,6 @@ class MainContent extends StatelessWidget {
           _buildFooterButton(
             "Expense",
             onPressed: () {
-              // ⭐️ INI ADALAH LOGIKA BARU ⭐️
               showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -244,9 +334,6 @@ class MainContent extends StatelessWidget {
     );
   }
 
-  // ===========================================
-  // ⭐️ FUNGSI INI JUGA DIPERBARUI (Menerima onPressed) ⭐️
-  // ===========================================
   Widget _buildFooterButton(
     String text, {
     required VoidCallback onPressed,
@@ -274,7 +361,7 @@ class MainContent extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: InkWell(
-          onTap: onPressed, // Gunakan callback onPressed
+          onTap: onPressed,
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
