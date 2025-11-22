@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
 
 // Kita juga perlu import SideNavRail untuk menampilkannya
-import 'package:horeka_post_plus/features/dashboard/views/widgets/side_nav_rail.dart';
+
 
 class PrinterSettingsPage extends StatelessWidget {
   const PrinterSettingsPage({super.key});
@@ -14,31 +14,8 @@ class PrinterSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackgroundColor,
-      // 1. APP BAR (Header atas dengan Logo)
-      appBar: AppBar(
-        backgroundColor: kWhiteColor,
-        elevation: 1,
-        shadowColor: kBorderColor,
-        automaticallyImplyLeading: false, // Menghilangkan tombol back
-        titleSpacing: 24,
-        title: Row(
-          children: [
-            Image.asset(
-              'assets/images/logo.png', // Logo "H"
-              height: 40,
-            ),
-            const SizedBox(width: 16),
-            const Text(
-              "Horeka Pos+",
-              style: TextStyle(
-                color: kBrandColor,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
+    // 1. APP BAR (Header atas dengan Logo)
+     
       // 2. BODY HALAMAN
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -46,7 +23,6 @@ class PrinterSettingsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 2a. SideNavRail (Navigasi Kiri)
-            const SideNavRail(),
             const SizedBox(width: 24),
             
             // 2b. Panel Konten Utama (Printer Settings)

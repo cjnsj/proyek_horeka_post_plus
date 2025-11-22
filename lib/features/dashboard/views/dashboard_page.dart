@@ -1,20 +1,26 @@
-// Salin dan Gantikan seluruh isi file
 // lib/features/dashboard/views/dashboard_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart'; // <-- IMPORT BLOC
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:horeka_post_plus/features/dashboard/views/widgets/global_header_bar.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dialogs/pin_kasir_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/views/widgets/cart_panel.dart';
 import 'package:horeka_post_plus/features/dashboard/views/widgets/main_content.dart';
 import 'package:horeka_post_plus/features/dashboard/views/widgets/side_nav_rail.dart';
 
-// --- IMPORT BARU UNTUK MENU BLOC ---
+// BLoC menu
 import 'package:horeka_post_plus/features/dashboard/controllers/menu_bloc/menu_bloc.dart';
 import 'package:horeka_post_plus/features/dashboard/controllers/menu_bloc/menu_event.dart';
 import 'package:horeka_post_plus/features/dashboard/services/menu_api_service.dart';
-// --- AKHIR IMPORT BARU ---
+
+// BLoC cart
+import 'package:horeka_post_plus/features/dashboard/controllers/cart_bloc/cart_bloc.dart';
+
+// Halaman lain
+import 'package:horeka_post_plus/features/dashboard/views/pages/sales_report_page.dart';
+import 'package:horeka_post_plus/features/dashboard/views/pages/printer_settings_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -24,18 +30,25 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  /// 0 = Dashboard
+  /// 1 = Sales report
+  /// 2 = Printer settings
+  int _selectedIndex = 0;
+
+  bool get _isDashboardMode => _selectedIndex == 0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showPinKasirDialog(context); 
+      _showPinKasirDialog(context);
     });
   }
-  
+
   void _showPinKasirDialog(BuildContext context) {
     showDialog(
       context: context,
-      barrierDismissible: false, 
+      barrierDismissible: false,
       barrierColor: const Color(0xFF4C45B5).withOpacity(0.4),
       builder: (BuildContext dialogContext) {
         return const PinKasirDialog();
@@ -43,119 +56,124 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Widget _buildCenterPage() {
+    switch (_selectedIndex) {
+      case 0:
+        return const MainContent();
+      case 1:
+         return const SalesReportContent(); // ganti nama, tanpa Scaffold
+      case 2:
+        return const PrinterSettingsPage();
+      default:
+        return const MainContent();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // --- DI SINILAH KITA MENYEDIAKAN BLOC ---
-    return BlocProvider(
-      // Kita buat MenuBloc di sini
-      // dan langsung memicu event FetchMenuEvent
-      // agar menu dimuat secara otomatis.
-      create: (context) => MenuBloc(apiService: MenuApiService())
-        ..add(FetchMenuEvent()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) =>
+              MenuBloc(apiService: MenuApiService())..add(FetchMenuEvent()),
+        ),
+        BlocProvider(
+          create: (context) => CartBloc(),
+        ),
+      ],
       child: Scaffold(
         backgroundColor: kBackgroundColor,
         resizeToAvoidBottomInset: false,
-        body: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. KOLOM UTAMA (Kiri & Tengah digabung)
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1a. KARTU HEADER ATAS
-                    _buildGlobalTopBar(),
-
-                    const SizedBox(height: 24),
-
-                    // 1b. ROW INTERNAL (Nav & Main)
-                    const Expanded(
+        body: Stack(
+          children: [
+            // LAYER 1: layout utama (side nav + konten + cart)
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Kiri: side nav + konten utama, turun 80 px
+                  Expanded(
+                    flex: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 80.0),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SideNavRail(),
-                          SizedBox(width: 24),
-                          Expanded(child: MainContent()),
+                          SideNavRail(
+                            selectedIndex: _selectedIndex,
+                            onItemSelected: (index) {
+                              setState(() {
+                                _selectedIndex = index;
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: _buildCenterPage(),
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              const SizedBox(width: 24),
+                  const SizedBox(width: 24),
 
-              // 2. PANEL KERANJANG
-              const Expanded(flex: 1, child: CartPanel()),
-            ],
-          ),
+                  // Kanan: cart, juga turun 80 px supaya sejajar
+                 // Kanan: cart, juga turun 80 px, dan panelnya dibuat memanjang
+// Kanan: cart
+if (_isDashboardMode)
+  Expanded(
+    flex: 1,
+    child: Padding(
+      padding: const EdgeInsets.only(top: 80.0),
+      child: Transform.translate(
+        offset: const Offset(0, -45), // geser seluruh card sedikit ke atas
+        child: FractionallySizedBox(
+          heightFactor: 1.1, // atur kalau mau card sedikit lebih tinggi
+          widthFactor: 1.0,
+          child: const CartPanel(),
         ),
       ),
-    );
-  }
+    ),
+  ),
 
-  // Widget Top Bar (Tidak berubah)
-  Widget _buildGlobalTopBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-      decoration: BoxDecoration(
-        color: kWhiteColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kBorderColor, width: 1),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Image.asset('assets/images/logo.png', height: 40),
-              const SizedBox(width: 16),
-              const Text(
-                "Horeka Pos+",
-                style: TextStyle(
-                  color: kBrandColor,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(
-            width: 300,
-            height: 40,
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Find menu",
-                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-                suffixIcon: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: SvgPicture.asset('assets/icons/search.svg'),
-                ),
-                filled: true,
-                fillColor: kWhiteColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: kBorderColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: kBorderColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: kBrandColor, width: 1.5),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 0,
-                  horizontal: 16,
-                ),
+                ],
               ),
             ),
-          ),
-        ],
+
+            // LAYER 2: header di atas kolom kiri saja
+            Positioned(
+              left: 24,
+              top: 24,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenWidth = MediaQuery.of(context).size.width;
+
+                  // Total horizontal padding: 24 kiri + 24 kanan + 24 gap tengah
+                  const double totalHorizontalPadding = 24 * 3;
+
+                  // Lebar area kerja (tanpa padding luar + gap tengah)
+                  final double contentWidth =
+                      screenWidth - totalHorizontalPadding;
+
+                  // Flex kiri:kanan = 2:1  → kolom kiri = 2/3 lebar konten
+                  final double leftWidth = contentWidth * 2 / 3;
+
+                  return SizedBox(
+                    width: leftWidth,
+                    child: GlobalHeaderBar(
+                      isExpandedMode: _isDashboardMode,
+                      onSearch: (value) {
+                        // TODO: sambungkan ke pencarian menu jika dibutuhkan
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

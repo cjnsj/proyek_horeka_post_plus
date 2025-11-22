@@ -1,23 +1,30 @@
-// Salin dan Gantikan seluruh isi file
 // lib/features/dashboard/views/widgets/side_nav_rail.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
-import 'package:horeka_post_plus/features/dashboard/views/pages/sales_report_page.dart';
-import 'package:horeka_post_plus/features/dashboard/views/pages/printer_settings_page.dart';
 
 class SideNavRail extends StatelessWidget {
-  const SideNavRail({super.key});
+  const SideNavRail({
+    super.key,
+    required this.selectedIndex,
+    required this.onItemSelected,
+  });
+
+  /// 0 = Dashboard, 1 = Laporan, 2 = Pengaturan
+  final int selectedIndex;
+
+  /// Dipanggil ketika item diklik, mengirim index ke DashboardPage
+  final ValueChanged<int> onItemSelected;
 
   static const double _iconSize = 27.0;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 75,
-      height: double.infinity,
-      padding: const EdgeInsets.only(top: 24.0, bottom: 8.0),
+      width: 75,                    // LEBAR FIX – tidak berubah
+      height: double.infinity,      // Tinggi mengikuti kolom kiri
+      padding: const EdgeInsets.only(top: 96.0, bottom: 8.0),
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
@@ -25,40 +32,34 @@ class SideNavRail extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const SizedBox(height: 64), 
 
-          // Tombol Navigasi
+          // HOME / MENU UTAMA
           _buildNavIcon(
             'assets/icons/print.svg',
-            onTap: () {
-              // TODO: Tentukan navigasi untuk tombol "Print"
-            }
+            isSelected: selectedIndex == 0,
+            onTap: () => onItemSelected(0),
           ),
-          
-          // ⭐️ 2. TAMBAHKAN AKSI ONTAP DI SINI ⭐️
+
+          // LAPORAN PENJUALAN
           _buildNavIcon(
-            'assets/icons/document.svg', // Ikon Laporan
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SalesReportPage()),
-              );
-            }
+            'assets/icons/document.svg',
+            isSelected: selectedIndex == 1,
+            onTap: () => onItemSelected(1),
           ),
-          
+
+          // PENGATURAN / PRINTER SETTINGS
           _buildNavIcon(
             'assets/icons/settings.svg',
             customSize: 21.0,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PrinterSettingsPage()),
-              );
-            }
+            isSelected: selectedIndex == 2,
+            onTap: () => onItemSelected(2),
           ),
-          const Spacer(), // Mendorong item ke bawah
+
+          const Spacer(),
+
+          // TOMBOL LOGOUT (statis, tanpa aksi dulu)
           Container(
-            margin: const EdgeInsets.only(top: 34.0, bottom: 0.0), 
+            margin: const EdgeInsets.only(top: 34.0, bottom: 0.0),
             padding: const EdgeInsets.all(12.0),
             decoration: BoxDecoration(
               color: Colors.transparent,
@@ -70,25 +71,23 @@ class SideNavRail extends StatelessWidget {
               height: _iconSize,
             ),
           ),
-          
         ],
       ),
     );
   }
 
-  // ⭐️ 3. MODIFIKASI FUNGSI INI AGAR BISA DI-KLIK ⭐️
-  Widget _buildNavIcon(String svgAsset, {
-    bool isSelected = false, 
+  // Widget ikon navigasi tunggal
+  Widget _buildNavIcon(
+    String svgAsset, {
+    bool isSelected = false,
     double? customSize,
-    VoidCallback? onTap, // Tambahkan parameter onTap
+    VoidCallback? onTap,
   }) {
-    
     final double size = customSize ?? _iconSize;
 
-    // Bungkus dengan InkWell agar bisa di-klik
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10), // Untuk efek ripple
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 16.0),
         padding: const EdgeInsets.all(12.0),

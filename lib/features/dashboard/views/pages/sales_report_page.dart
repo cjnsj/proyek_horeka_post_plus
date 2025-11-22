@@ -1,141 +1,34 @@
-// Salin ke file baru:
 // lib/features/dashboard/views/pages/sales_report_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:horeka_post_plus/features/dashboard/views/dashboard_constants.dart';
 
-class SalesReportPage extends StatelessWidget {
-  const SalesReportPage({super.key});
+class SalesReportContent extends StatelessWidget {
+  const SalesReportContent({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBackgroundColor,
-      // 1. APP BAR (HEADER)
-      appBar: AppBar(
-        backgroundColor: kWhiteColor,
-        elevation: 1,
-        shadowColor: kBorderColor,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: kDarkTextColor),
-          onPressed: () => Navigator.of(context).pop(),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // KIRI: card utama laporan (rasio 2)
+        Expanded(
+          flex: 2,
+          child: _buildTransactionListCard(),
         ),
-        // Judul disembunyikan, karena tab akan menggantikannya
-        title: const Text(""), // Kosong
-        flexibleSpace: _buildTabs(), // Menggunakan Tab sebagai pengganti judul
-        actions: [
-          IconButton(
-            icon: SvgPicture.asset(
-              'assets/icons/print_kedua.svg',
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                kBrandColor, // Warna ungu
-                BlendMode.srcIn,
-              ),
-            ),
-            onPressed: () {
-              // TODO: Logika untuk print
-            },
-          ),
-        ],
-      ),
-      // 2. BODY HALAMAN
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 3. PANEL KIRI (LIST TRANSAKSI)
-            Expanded(
-              flex: 2, // Panel kiri lebih besar
-              child: _buildTransactionListPanel(),
-            ),
-            const SizedBox(width: 24),
-            // 4. PANEL KANAN (DETAIL)
-            Expanded(
-              flex: 1, // Panel kanan lebih kecil
-              child: _buildDetailsPanel(),
-            ),
-          ],
+        const SizedBox(width: 24),
+        // KANAN: card detail (rasio 1)
+        Expanded(
+          flex: 1,
+          child: _buildDetailsCard(),
         ),
-      ),
+      ],
     );
   }
 
-  // WIDGET UNTUK TAB DI APPBAR
-  Widget _buildTabs() {
-    return Align(
-      alignment: Alignment.bottomLeft,
-      child: Container(
-        color: kWhiteColor,
-        padding: const EdgeInsets.only(top: 40.0, left: 56.0), // Beri jarak untuk back button
-        child: Row(
-          children: [
-            // Tab Aktif: Sales report
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: const BoxDecoration(
-                color: kBrandColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(10),
-                  topRight: Radius.circular(10),
-                ),
-              ),
-              child: const Text(
-                "Sales report",
-                style: TextStyle(
-                  color: kWhiteColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            // Tab Tidak Aktif
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: kWhiteColor,
-                border: Border(
-                  bottom: BorderSide(color: kBrandColor, width: 2),
-                ),
-              ),
-              child: Text(
-                "Item report",
-                style: TextStyle(
-                  color: kDarkTextColor.withOpacity(0.7),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            // Tab Tidak Aktif
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: kWhiteColor,
-                border: Border(
-                  bottom: BorderSide(color: kBrandColor, width: 2),
-                ),
-              ),
-              child: Text(
-                "Expenditure report",
-                style: TextStyle(
-                  color: kDarkTextColor.withOpacity(0.7),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ========== CARD KIRI (SALES REPORT) ==========
 
-  // WIDGET UNTUK PANEL KIRI
-  Widget _buildTransactionListPanel() {
+  Widget _buildTransactionListCard() {
     return Container(
       decoration: BoxDecoration(
         color: kWhiteColor,
@@ -144,101 +37,162 @@ class SalesReportPage extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Area Filter Tanggal & Void
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                _buildDatePicker("Start date", "04-11-2025"),
-                const SizedBox(width: 16),
-                _buildDatePicker("Start date", "05-11-2025"), // Di gambar "Start date" lagi?
-                const Spacer(),
-                Checkbox(
-                  value: false,
-                  onChanged: (val) {},
-                  activeColor: kBrandColor,
-                ),
-                const Text(
-                  "Only void",
-                  style: TextStyle(color: kDarkTextColor),
-                ),
-              ],
-            ),
-          ),
-          
+          _buildHeaderWithTabs(),
           const Divider(height: 1, color: kBorderColor),
-
-          // List Transaksi
           Expanded(
             child: ListView(
               children: [
-                // Ini adalah data dummy
                 _buildTransactionTile(
-                    "TR0511202510001", "05-11-2025 09:13:15", "Rp. 18.000,00"),
+                  "TR0511202510001",
+                  "05-11-2025 09:13:15",
+                  "Rp. 18.000,00",
+                ),
               ],
             ),
           ),
-          
           const Divider(height: 1, color: kBorderColor),
+          _buildFooterTotal(),
+        ],
+      ),
+    );
+  }
 
-          // Footer Total & Tombol Print
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Total
-                Row(
-                  children: [
-                    Text(
-                      "Total sales amount",
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Text(
-                      "Rp.18.000,00",
-                      style: TextStyle(
-                        color: kDarkTextColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+  Widget _buildHeaderWithTabs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildActiveTab("Sales report"),
+              _buildInactiveTab("Item report"),
+              _buildInactiveTab("Expenditure report"),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildDatePicker("Start date", "04-11-2025"),
+              const SizedBox(width: 16),
+              _buildDatePicker("Start date", "05-11-2025"),
+              const SizedBox(width: 24),
+              const Text(
+                "Filter Void",
+                style: TextStyle(
+                  color: kDarkTextColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
-                // Tombol "Print sales report"
-                SizedBox(
-                  height: 45,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Logika print report
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kBrandColor,
-                      foregroundColor: kWhiteColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      )
-                    ),
-                    child: const Text("Print sales report"),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Checkbox(
+                value: false,
+                onChanged: (val) {},
+                activeColor: kBrandColor,
+              ),
+              const Text(
+                "Only void",
+                style: TextStyle(color: kDarkTextColor),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveTab(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      decoration: const BoxDecoration(
+        color: kBrandColor,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(10),
+          topRight: Radius.circular(10),
+        ),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: kWhiteColor,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInactiveTab(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      decoration: const BoxDecoration(
+        color: kWhiteColor,
+        border: Border(
+          bottom: BorderSide(color: kBrandColor, width: 2),
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: kDarkTextColor.withOpacity(0.7),
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterTotal() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Total sales amount",
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
+              ),
+              const SizedBox(width: 16),
+              const Text(
+                "Rp.18.000,00",
+                style: TextStyle(
+                  color: kDarkTextColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(
+            height: 45,
+            child: ElevatedButton(
+              onPressed: () {},
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kBrandColor,
+                foregroundColor: kWhiteColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              child: const Text("Print sales report"),
             ),
           ),
         ],
       ),
     );
   }
-  
-  // Helper untuk Date Picker palsu
+
   Widget _buildDatePicker(String label, String date) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,7 +202,7 @@ class SalesReportPage extends StatelessWidget {
           style: const TextStyle(
             color: kDarkTextColor,
             fontSize: 14,
-            fontWeight: FontWeight.w500
+            fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 8),
@@ -259,16 +213,23 @@ class SalesReportPage extends StatelessWidget {
           decoration: BoxDecoration(
             color: kBackgroundColor,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: kBorderColor)
+            border: Border.all(color: kBorderColor),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 date,
-                style: const TextStyle(color: kDarkTextColor, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  color: kDarkTextColor,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              const Icon(Icons.calendar_today_outlined, size: 18, color: kDarkTextColor),
+              const Icon(
+                Icons.calendar_today_outlined,
+                size: 18,
+                color: kDarkTextColor,
+              ),
             ],
           ),
         ),
@@ -276,7 +237,6 @@ class SalesReportPage extends StatelessWidget {
     );
   }
 
-  // Widget untuk satu item transaksi
   Widget _buildTransactionTile(String id, String dateTime, String price) {
     return Container(
       decoration: const BoxDecoration(
@@ -286,7 +246,6 @@ class SalesReportPage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Info Teks (ID, Tanggal)
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -301,11 +260,13 @@ class SalesReportPage extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 dateTime,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
-          // Harga
           Text(
             price,
             style: const TextStyle(
@@ -319,10 +280,10 @@ class SalesReportPage extends StatelessWidget {
     );
   }
 
-  // WIDGET UNTUK PANEL KANAN
-  Widget _buildDetailsPanel() {
+  // ========== CARD KANAN (DETAIL) ==========
+
+  Widget _buildDetailsCard() {
     return Container(
-      height: double.infinity,
       decoration: BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.circular(12),
@@ -330,70 +291,48 @@ class SalesReportPage extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header "Sales details"
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
+              children: const [
+                Text(
                   "Sales details",
                   style: TextStyle(
-                      color: kDarkTextColor,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                    color: kDarkTextColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
           ),
           const Divider(height: 1, color: kBorderColor),
-
-          // Tampilan Kosong (sesuai gambar)
-          Expanded(
+          const Expanded(
             child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_circle_outline, color: kBrandColor, size: 25),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Please select a transaction", // Teks sesuai gambar
-                    style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
+              child: _EmptyDetails(),
             ),
           ),
-          
           const Divider(height: 1, color: kBorderColor),
-
-          // Total (Bagian bawah)
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
-              children: [
-                _buildTotalRow("Discount", "-Rp.0,00"),
-                _buildTotalRow("Subtotal", "Rp.0,00"),
-                _buildTotalRow("Tax", "+Rp.0,00"),
-                const Divider(height: 24),
-                _buildTotalRow("Total", "Rp.0,00", isTotal: true),
+              children: const [
+                _TotalRow("Discount", "-Rp.0,00"),
+                _TotalRow("Subtotal", "Rp.0,00"),
+                _TotalRow("Tax", "+Rp.0,00"),
+                Divider(height: 24),
+                _TotalRow("Total", "Rp.0,00", isTotal: true),
               ],
             ),
           ),
-
-          // Tombol "Print Receipt" di paling bawah
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  // TODO: Logika print final
-                },
+                onPressed: null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kBrandColor,
                   foregroundColor: kWhiteColor,
@@ -403,7 +342,7 @@ class SalesReportPage extends StatelessWidget {
                   textStyle: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                  )
+                  ),
                 ),
                 child: const Text("Print receipt"),
               ),
@@ -413,9 +352,40 @@ class SalesReportPage extends StatelessWidget {
       ),
     );
   }
+}
 
-  // Helper untuk baris Total
-  Widget _buildTotalRow(String title, String amount, {bool isTotal = false}) {
+class _EmptyDetails extends StatelessWidget {
+  const _EmptyDetails();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.add_circle_outline, color: kBrandColor, size: 25),
+        const SizedBox(height: 8),
+        Text(
+          "Please select a transaction",
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TotalRow extends StatelessWidget {
+  final String title;
+  final String amount;
+  final bool isTotal;
+
+  const _TotalRow(this.title, this.amount, {this.isTotal = false, super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
