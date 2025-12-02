@@ -45,7 +45,11 @@ dependencies:
   # TAMBAHKAN BARIS INI
   device_info_plus: ^10.1.0 # (atau versi terbaru)
 
-  uuid: ^4.4.0 # (atau versi terbaru)
+  uuid: ^4.4.0 # (atau versi terbaru)dependencies:
+  intl: ^0.18.1
+
+
+
 
 dev_dependencies:
   flutter_test:
