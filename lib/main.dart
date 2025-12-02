@@ -1,10 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:horeka_post_plus/features/auth_landing/controllers/auth_page_bloc.dart';
-import 'package:horeka_post_plus/features/auth_landing/views/auth_page.dart';
+import 'package:horeka_post_plus/features/auth/bloc/auth_bloc.dart';
+import 'package:horeka_post_plus/features/auth/data/auth_repository.dart';
+import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
+import 'package:horeka_post_plus/features/auth/view/auth_page.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthBloc>(
+          create: (context) =>
+              AuthBloc(repository: AuthRepository())
+                ..add(CheckActivationStatusRequested()),
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -17,12 +30,10 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         primarySwatch: Colors.blue,
+        useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: BlocProvider(
-        create: (context) => AuthPageBloc(),
-        child: const AuthPage(),
-      ),
+      home: const AuthPage(),
     );
   }
 }
