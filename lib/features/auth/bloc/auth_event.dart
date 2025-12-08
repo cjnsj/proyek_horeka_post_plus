@@ -35,9 +35,33 @@ class LoginRequested extends AuthEvent {
   List<Object?> get props => [username, password, shiftId];
 }
 
+class ValidatePinRequested extends AuthEvent {
+  final String pin;
+
+  const ValidatePinRequested({required this.pin});
+
+  @override
+  List<Object?> get props => [pin];
+}
+
+class OpenShiftRequested extends AuthEvent {
+  final String cashierId;
+  final int openingCash;
+
+  const OpenShiftRequested({
+    required this.cashierId,
+    required this.openingCash,
+  });
+
+  @override
+  List<Object?> get props => [cashierId, openingCash];
+}
+
+// [BARU] Event untuk menutup shift
+class CloseShiftRequested extends AuthEvent {}
+
 class LogoutRequested extends AuthEvent {}
 
-// Event untuk menggerakkan carousel background
 class BackgroundTicked extends AuthEvent {
   const BackgroundTicked();
 }

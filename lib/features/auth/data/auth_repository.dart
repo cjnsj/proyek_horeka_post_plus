@@ -1,33 +1,151 @@
-import 'package:horeka_post_plus/core/utils/device_info_helper.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:horeka_post_plus/core/constants/app_constants.dart';
+import 'package:horeka_post_plus/core/utils/device_info_helper.dart';
 
 class AuthRepository {
-  static const String _activationCodeKey = 'activation_code';
-  static const String _usernameKey = 'username';
-  static const String _tokenKey = 'jwt_token';
-  
-  static const String _baseUrl = 'http://192.168.1.16:3001/api';
-  
-  // Cek apakah device sudah diaktivasi
+  // --- [LANGKAH 1] Validasi PIN (Tanpa /v1) ---
+  Future<Map<String, dynamic>> validatePin(String pin) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+
+      if (token == null) {
+        throw Exception('Token not found. Please login again.');
+      }
+
+      // URL Endpoint tanpa /v1
+      final url = '${AppConstants.apiBaseUrl}/shift/validate-pin';
+      print("Requesting: $url"); // Debug
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'operator_pin': pin,
+        }),
+      );
+
+      // Cek jika server mengembalikan HTML (Error 404/500/Proxy)
+      if (response.body.trim().startsWith('<')) {
+        throw Exception('Server Error: Mendapat respon HTML (${response.statusCode}). Cek URL API atau jaringan.');
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        // Mengembalikan data { cashier_id, full_name }
+        return data['data'];
+      } else {
+        throw Exception(data['message'] ?? 'PIN Salah');
+      }
+    } catch (e) {
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  // --- [LANGKAH 2] Buka Shift (Tanpa /v1) ---
+  // Menerima cashierId (hasil dari langkah 1), bukan PIN lagi
+  Future<void> openShift(String cashierId, int openingCash) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+
+      if (token == null) {
+        throw Exception('Token not found.');
+      }
+
+      // URL Endpoint tanpa /v1
+      final url = '${AppConstants.apiBaseUrl}/shift/open';
+      
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'cashier_id': cashierId,
+          'opening_cash': openingCash,
+        }),
+      );
+
+      // Cek error HTML
+      if (response.body.trim().startsWith('<')) {
+        throw Exception('Server Error: Mendapat respon HTML (${response.statusCode}).');
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 201) {
+        return; // Sukses
+      } else {
+        throw Exception(data['message'] ?? 'Gagal membuka shift');
+      }
+    } catch (e) {
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  // --- [LANGKAH 3] Tutup Shift (Tanpa /v1) ---
+  // Dipanggil saat logout
+  Future<void> closeShift() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+
+      if (token == null) throw Exception('Token not found.');
+
+      // URL Endpoint tanpa /v1
+      final url = '${AppConstants.apiBaseUrl}/shift/close';
+      
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.body.trim().startsWith('<')) {
+        throw Exception('Server Error: HTML response during close shift.');
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return; // Sukses tutup shift
+      } else {
+        throw Exception(data['message'] ?? 'Gagal menutup shift');
+      }
+    } catch (e) {
+      // Kita lempar error agar bisa ditangani di Bloc (opsional)
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  // --- Cek Status Aktivasi ---
   Future<bool> checkActivationStatus() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final code = prefs.getString(_activationCodeKey);
+      final code = prefs.getString(AppConstants.activationCodeKey);
       return code != null && code.isNotEmpty;
     } catch (e) {
       throw Exception('Gagal mengecek status aktivasi: $e');
     }
   }
 
-  // Aktivasi device dengan kode
+  // --- Aktivasi Perangkat ---
   Future<void> activateDevice(String activationCode) async {
     try {
       final deviceInfo = await DeviceInfoHelper.getDeviceInfo();
       
       final response = await http.post(
-        Uri.parse('$_baseUrl/license/activate'),
+        Uri.parse('${AppConstants.apiBaseUrl}/license/activate'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'activation_code': activationCode,
@@ -36,11 +154,15 @@ class AuthRepository {
         }),
       );
 
+      if (response.body.trim().startsWith('<')) {
+        throw Exception('Server Error: HTML response during activation.');
+      }
+
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_activationCodeKey, activationCode);
+        await prefs.setString(AppConstants.activationCodeKey, activationCode);
       } else {
         throw Exception(data['message'] ?? 'Kode aktivasi tidak valid');
       }
@@ -49,26 +171,30 @@ class AuthRepository {
     }
   }
 
-  // Fetch device info (branch name & shifts)
+  // --- Ambil Info Device (Login Screen) ---
   Future<Map<String, dynamic>> getDeviceInfo() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final activationCode = prefs.getString(_activationCodeKey);
+      final activationCode = prefs.getString(AppConstants.activationCodeKey);
 
       if (activationCode == null) {
-        throw Exception('Device not activated. No activation code found.');
+        throw Exception('Device not activated.');
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/auth/device-info?code=$activationCode'),
+        Uri.parse('${AppConstants.apiBaseUrl}/auth/device-info?code=$activationCode'),
         headers: {'Content-Type': 'application/json'},
       );
+
+      if (response.body.trim().startsWith('<')) {
+        throw Exception('Server Error: HTML response getting device info.');
+      }
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         return {
-          'branch_name': data['branch_name'] ?? data['branch']?['name'] ?? '',
+          'branch_name': data['branch_name'] ?? '',
           'schedules': (data['schedules'] as List<dynamic>? ?? [])
               .map((e) => {
                     'id': e['id'].toString(),
@@ -84,11 +210,11 @@ class AuthRepository {
     }
   }
 
-  // Login user dengan shift
+  // --- Login ---
   Future<String> login(String username, String password, String shiftId) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
+        Uri.parse('${AppConstants.apiBaseUrl}/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username,
@@ -97,14 +223,18 @@ class AuthRepository {
         }),
       );
 
+      if (response.body.trim().startsWith('<')) {
+        throw Exception('Server Error: HTML response during login.');
+      }
+
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         final token = data['token'] ?? '';
         
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_tokenKey, token);
-        await prefs.setString(_usernameKey, username);
+        await prefs.setString(AppConstants.tokenKey, token);
+        await prefs.setString(AppConstants.usernameKey, username);
         
         return username;
       } else {
@@ -115,24 +245,14 @@ class AuthRepository {
     }
   }
 
-  // Logout user
+  // --- Logout ---
   Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_usernameKey);
-      await prefs.remove(_tokenKey);
+      await prefs.remove(AppConstants.usernameKey);
+      await prefs.remove(AppConstants.tokenKey);
     } catch (e) {
       throw Exception('Gagal logout: $e');
-    }
-  }
-
-  // Get JWT Token
-  Future<String?> getJwtToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_tokenKey);
-    } catch (e) {
-      return null;
     }
   }
 }

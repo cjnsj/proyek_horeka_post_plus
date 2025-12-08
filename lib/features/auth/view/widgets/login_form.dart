@@ -79,9 +79,13 @@ class _LoginFormState extends State<LoginForm> {
     }
     if (lowerApiName.contains('shift 2') || lowerApiName.contains('siang')) {
       return "Shift 2";
+      
     }
-    if (lowerApiName.contains('shift 3') || lowerApiName.contains('malam')) {
+     if (lowerApiName.contains('shift 3') || lowerApiName.contains('sore')) {
       return "Shift 3";
+    }
+    if (lowerApiName.contains('shift 4') || lowerApiName.contains('malam')) {
+      return "Shift 4";
     }
     return apiName.split('(').first.trim();
   }
@@ -96,12 +100,6 @@ class _LoginFormState extends State<LoginForm> {
 
         if (state.status == AuthStatus.authenticated) {
           // TODO: ganti dengan navigation ke dashboard
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Login berhasil! Welcome ${state.username}'),
-              backgroundColor: Colors.green,
-            ),
-          );
         }
       },
       builder: (context, state) {

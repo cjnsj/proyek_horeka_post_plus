@@ -1,15 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:horeka_post_plus/core/constants/app_constants.dart';
+import 'package:horeka_post_plus/features/auth/bloc/auth_bloc.dart';
+import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
+import 'package:horeka_post_plus/features/auth/bloc/auth_state.dart';
 import 'package:horeka_post_plus/features/auth/view/auth_page.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
+import 'package:horeka_post_plus/features/dashboard/data/model/cart_model.dart';
+import 'package:horeka_post_plus/features/dashboard/data/product_model.dart';
 import 'package:horeka_post_plus/features/dashboard/dialogs/expense_dialog.dart';
+import 'package:horeka_post_plus/features/dashboard/dialogs/pin_kasir_dialog.dart';
+import 'package:horeka_post_plus/features/dashboard/dialogs/save_queue_dialog.dart';
+import 'package:horeka_post_plus/features/dashboard/dialogs/starting_balance_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
+import 'package:horeka_post_plus/features/dashboard/view/pembayaran.dart';
 import 'package:horeka_post_plus/features/dashboard/view/print_receipt_page.dart';
 import 'package:horeka_post_plus/features/dashboard/view/printer_settings_page.dart';
 import 'package:horeka_post_plus/features/dashboard/view/queue_list_page.dart';
 import 'package:horeka_post_plus/features/dashboard/view/report_page.dart';
-import 'package:horeka_post_plus/features/dashboard/dialogs/pin_kasir_dialog.dart';
-import 'package:horeka_post_plus/features/dashboard/dialogs/starting_balance_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/view/void_mode_page.dart';
+import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,18 +33,23 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _index = 0;
-  bool _isPinVerified = false;
-  bool _isBalanceSet = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showPinDialog();
+      final authState = context.read<AuthBloc>().state;
+      if (!authState.isShiftOpen) {
+        _showPinDialog();
+      } else {
+        context.read<DashboardBloc>().add(FetchMenuRequested());
+      }
     });
   }
 
   void _showPinDialog() {
+    final authBloc = context.read<AuthBloc>();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -39,19 +57,17 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => WillPopScope(
         onWillPop: () async => false,
         child: PinKasirDialog(
-          onPinVerified: () {
-            setState(() {
-              _isPinVerified = true;
-            });
-            Navigator.of(context).pop();
-            _showStartingBalanceDialog();
+          onPinSubmitted: (pin) {
+            authBloc.add(ValidatePinRequested(pin: pin));
           },
         ),
       ),
     );
   }
 
-  void _showStartingBalanceDialog() {
+  void _showStartingBalanceDialog(String cashierId) {
+    final authBloc = context.read<AuthBloc>();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -59,10 +75,11 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => WillPopScope(
         onWillPop: () async => false,
         child: StartingBalanceDialog(
-          onBalanceSaved: () {
-            setState(() {
-              _isBalanceSet = true;
-            });
+          onBalanceSaved: (amount) {
+            if (!mounted) return;
+            authBloc.add(
+              OpenShiftRequested(cashierId: cashierId, openingCash: amount),
+            );
           },
         ),
       ),
@@ -74,73 +91,156 @@ class _HomePageState extends State<HomePage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final cartWidth = screenWidth >= 1200 ? 430.0 : screenWidth * 0.32;
 
-    final canInteract = _isPinVerified && _isBalanceSet;
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<AuthBloc, AuthState>(
+          listener: (context, state) {
+            if (state.status == AuthStatus.error) {
+              final isPinError =
+                  state.errorMessage?.toLowerCase().contains('pin') == true;
+              if (!isPinError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.errorMessage ?? 'Terjadi kesalahan'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
 
-    return Scaffold(
-      backgroundColor: kBackgroundColor,
-      resizeToAvoidBottomInset: false,
-      body: SafeArea(
-        child: AbsorbPointer(
-          absorbing: !canInteract,
-          child: Stack(
+            if (state.status == AuthStatus.success &&
+                state.isPinValidated &&
+                !state.isShiftOpen) {
+              Navigator.of(context).pop();
+              _showStartingBalanceDialog(state.tempCashierId ?? '');
+            }
+
+            if (state.status == AuthStatus.success && state.isShiftOpen) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Shift berhasil dibuka!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              context.read<DashboardBloc>().add(FetchMenuRequested());
+            }
+
+            if (state.status == AuthStatus.success && !state.isAuthenticated) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const AuthPage()),
+                (route) => false,
+              );
+            }
+          },
+        ),
+        BlocListener<DashboardBloc, DashboardState>(
+          listener: (context, state) {
+            if (state.status == DashboardStatus.transactionSuccess) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Transaksi Berhasil!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+            if (state.status == DashboardStatus.expenseSuccess) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Pengeluaran Berhasil Dicatat!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+            if (state.status == DashboardStatus.error) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage ?? 'Terjadi Kesalahan'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+        ),
+      ],
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, state) {
+          final canInteract =
+              state.isShiftOpen && state.status != AuthStatus.loading;
+
+          return Stack(
             children: [
-              // Cart area (hanya muncul di index 0)
-              if (_index == 0)
-                Positioned.fill(
-                  top: 16,
-                  bottom: 16,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: SizedBox(
-                      width: cartWidth,
-                      child: const _CartAreaFullScreen(),
+              Scaffold(
+                backgroundColor: kBackgroundColor,
+                resizeToAvoidBottomInset: false,
+                body: SafeArea(
+                  child: AbsorbPointer(
+                    absorbing: !canInteract,
+                    child: Stack(
+                      children: [
+                        if (_index == 0)
+                          Positioned.fill(
+                            top: 16,
+                            bottom: 16,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: SizedBox(
+                                width: cartWidth,
+                                child: const _CartAreaFullScreen(),
+                              ),
+                            ),
+                          ),
+                        if (_index == 1)
+                          const Positioned.fill(child: ReportPage()),
+                        if (_index == 2)
+                          const Positioned.fill(child: PrinterSettingsPage()),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 24,
+                          ),
+                          child: Column(
+                            children: [
+                              _TopHeaderGlobal(currentIndex: _index),
+                              const SizedBox(height: 16),
+                              Expanded(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _SideMenu(
+                                      index: _index,
+                                      onTap: (i) => setState(() => _index = i),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    if (_index == 0)
+                                      const Expanded(child: _ProductOnlyArea()),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-
-              // Report page (index 1) - FULL SCREEN tanpa padding dari HomePage
-              if (_index == 1) const Positioned.fill(child: ReportPage()),
-
-              // Printer settings (index 2) - FULL SCREEN tanpa padding dari HomePage
-              if (_index == 2)
-                const Positioned.fill(child: PrinterSettingsPage()),
-
-              // Header + Side Menu + Product Area dengan padding (untuk semua index)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 24,
-                ),
-                child: Column(
-                  children: [
-                    _TopHeaderGlobal(currentIndex: _index),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _SideMenu(
-                            index: _index,
-                            onTap: (i) => setState(() => _index = i),
-                          ),
-                          const SizedBox(width: 16),
-                          // Product area hanya muncul di index 0
-                          if (_index == 0)
-                            const Expanded(child: _ProductOnlyArea()),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               ),
+              if (state.status == AuthStatus.loading)
+                Container(
+                  color: Colors.black.withOpacity(0.3),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: kBrandColor),
+                  ),
+                ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
-// ================== PRODUCT AREA ==================
+
+// ================== AREA PRODUK ==================
 
 class _ProductOnlyArea extends StatelessWidget {
   const _ProductOnlyArea();
@@ -183,8 +283,10 @@ class _ProductAreaCombined extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // HEADER KATEGORI
           Container(
-            height: 56,
+            height: 45,
+            width: double.infinity,
             decoration: const BoxDecoration(
               color: kBrandColor,
               borderRadius: BorderRadius.only(
@@ -192,34 +294,163 @@ class _ProductAreaCombined extends StatelessWidget {
                 topRight: Radius.circular(18),
               ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            alignment: Alignment.bottomLeft,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              decoration: const BoxDecoration(
-                color: kWhiteColor,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
-              ),
-              child: const Text(
-                'Makanan',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+            child: BlocBuilder<DashboardBloc, DashboardState>(
+              builder: (context, state) {
+                if (state.categories.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Text(
+                      'Memuat...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  itemCount: state.categories.length,
+                  itemBuilder: (context, index) {
+                    final category = state.categories[index];
+                    final isSelected = category == state.selectedCategory;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: InkWell(
+                        onTap: () {
+                          context.read<DashboardBloc>().add(
+                            SelectCategory(category),
+                          );
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? kWhiteColor
+                                : Colors.transparent,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12),
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Spacer(),
+                              Text(
+                                category,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? kBrandColor
+                                      : Colors.white.withOpacity(0.8),
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (isSelected)
+                                Container(
+                                  height: 3,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 40,
+                                  ),
+                                  margin: const EdgeInsets.only(bottom: 0),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.grey,
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(2),
+                                    ),
+                                  ),
+                                )
+                              else
+                                const SizedBox(height: 3),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
+
+          // GRID PRODUK
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: SizedBox(
-                  width: 210,
-                  height: 170,
-                  child: const _MenuCard(),
-                ),
-              ),
+            child: BlocBuilder<DashboardBloc, DashboardState>(
+              builder: (context, state) {
+                if (state.status == DashboardStatus.loading) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: kBrandColor),
+                  );
+                } else if (state.status == DashboardStatus.error) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          state.errorMessage ?? 'Gagal memuat menu',
+                          style: const TextStyle(color: kTextGrey),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => context.read<DashboardBloc>().add(
+                            FetchMenuRequested(),
+                          ),
+                          child: const Text('Coba Lagi'),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (state.filteredProducts.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.search_off,
+                          size: 48,
+                          color: kTextGrey,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Tidak ada produk di kategori "${state.selectedCategory}"',
+                          style: const TextStyle(color: kTextGrey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: GridView.builder(
+                    itemCount: state.filteredProducts.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.4,
+                        ),
+                    itemBuilder: (context, index) {
+                      final product = state.filteredProducts[index];
+                      return _MenuCard(product: product);
+                    },
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -229,50 +460,118 @@ class _ProductAreaCombined extends StatelessWidget {
 }
 
 class _MenuCard extends StatelessWidget {
-  const _MenuCard();
+  final ProductModel product;
+
+  const _MenuCard({required this.product});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: kWhiteColor,
-      borderRadius: BorderRadius.circular(18),
-      elevation: 2,
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
+
+    const double cardRadius = 16.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(cardRadius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(cardRadius),
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Container(
-              height: 100,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(18),
-                ),
-                image: const DecorationImage(
-                  image: AssetImage('assets/images/nodata.png'),
-                  fit: BoxFit.cover,
+            product.imageUrl.isNotEmpty
+                ? Image.network(
+                    product.imageUrl.startsWith('http')
+                        ? product.imageUrl
+                        : '${AppConstants.apiBaseUrl.replaceAll('/api', '')}/${product.imageUrl}',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Image.asset(
+                        'assets/images/nodata.png',
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  )
+                : Image.asset('assets/images/nodata.png', fit: BoxFit.cover),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 80,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                  ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 40,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text(
-                    'Mie',
-                    style: TextStyle(
-                      color: kTextDark,
-                      fontWeight: FontWeight.w600,
+                    product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
-                    'Rp.18.000,00',
-                    style: TextStyle(color: kTextGrey, fontSize: 12),
+                    formatter.format(product.price),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
+              ),
+            ),
+            Positioned(
+              bottom: 10,
+              right: 10,
+              child: InkWell(
+                onTap: () {
+                  context.read<DashboardBloc>().add(AddToCart(product));
+                },
+                child: SvgPicture.asset(
+                  'assets/icons/tambah.svg',
+                  width: 21,
+                  height: 21,
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(cardRadius),
+                  onTap: () {
+                    context.read<DashboardBloc>().add(AddToCart(product));
+                  },
+                ),
               ),
             ),
           ],
@@ -281,6 +580,8 @@ class _MenuCard extends StatelessWidget {
     );
   }
 }
+
+// ================== [WIDGETS LAIN] ==================
 
 class _BottomActionsBar extends StatelessWidget {
   const _BottomActionsBar();
@@ -316,14 +617,23 @@ class _BottomActionsBar extends StatelessWidget {
               onPressed: () {
                 showDialog(
                   context: context,
-                  barrierDismissible:
-                      false, // Tidak bisa tutup dialog dengan klik luar
-                  barrierColor: kBrandColor.withOpacity(
-                    0.5,
-                  ), // Transparansi warna sesuai kebutuhan
+                  barrierDismissible: false,
+                  barrierColor: kBrandColor.withOpacity(0.5),
                   builder: (context) => ExpenseDialog(
                     onSave: (desc, amount) {
-                      // aksi simpan expense
+                      final cleanAmount = amount.replaceAll(
+                        RegExp(r'[^0-9]'),
+                        '',
+                      );
+                      final intAmount = int.tryParse(cleanAmount) ?? 0;
+                      if (intAmount > 0 && desc.isNotEmpty) {
+                        context.read<DashboardBloc>().add(
+                          CreateExpenseRequested(
+                            description: desc,
+                            amount: intAmount,
+                          ),
+                        );
+                      }
                     },
                   ),
                 );
@@ -349,11 +659,7 @@ class _BottomButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
 
-  const _BottomButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-  });
+  const _BottomButton({required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -379,6 +685,7 @@ class _BottomButton extends StatelessWidget {
     );
   }
 }
+
 // ================== CART AREA ==================
 
 class _CartAreaFullScreen extends StatelessWidget {
@@ -433,7 +740,14 @@ class _CartHeader extends StatelessWidget {
               fontSize: 18,
             ),
           ),
-          SvgPicture.asset('assets/icons/delete.svg', width: 24, height: 24),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/delete.svg',
+              width: 24,
+              height: 24,
+            ),
+            onPressed: () => context.read<DashboardBloc>().add(ClearCart()),
+          ),
         ],
       ),
     );
@@ -445,81 +759,230 @@ class _CartContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        if (state.cartItems.isEmpty) {
+          return Expanded(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Icon(Icons.add_circle_outline, size: 28, color: kBrandColor),
+                  Icon(
+                    Icons.shopping_cart_outlined,
+                    size: 48,
+                    color: Colors.grey,
+                  ),
                   SizedBox(height: 8),
-                  Text(
-                    'New Order',
-                    style: TextStyle(
-                      color: kTextGrey,
-                      fontWeight: FontWeight.w500,
+                  Text('Keranjang Kosong', style: TextStyle(color: kTextGrey)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: state.cartItems.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = state.cartItems[index];
+                  return _CartItemRow(item: item);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: const _PromoCodeButton(),
+              ),
+            ),
+            const SizedBox(height: 26),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: _SummaryColumn(),
+            ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: kBorderColor),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade400,
+                        foregroundColor: kWhiteColor,
+                        minimumSize: const Size.fromHeight(55),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final result = await showDialog(
+                          context: context,
+                          barrierDismissible: true,
+                          barrierColor: Colors.black.withOpacity(0.5),
+                          builder: (BuildContext context) {
+                            return const SaveQueueDialog();
+                          },
+                        );
+
+                        // Handle result jika ada
+                        if (result != null) {
+                          // TODO: Save queue data ke database
+                          print('Table Number: ${result['tableNumber']}');
+                          print('Waiter Name: ${result['waiterName']}');
+                          print('Order Notes: ${result['orderNotes']}');
+
+                          // Optional: Show success message
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Queue berhasil disimpan!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Save Queue'),
+                    ),
+                  ),
+
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kBrandColor,
+                        foregroundColor: kWhiteColor,
+                        minimumSize: const Size.fromHeight(55),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () {
+                        // [UPDATE] Navigasi ke Halaman Pembayaran
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PaymentPage(),
+                          ),
+                        );
+                      },
+                      child: const Text('Pay Now'),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: const _PromoCodeButton(),
-          ),
-        ),
-        const SizedBox(height: 26),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: _SummaryColumn(),
-        ),
-        const SizedBox(height: 12),
-        Container(height: 1, color: kBorderColor),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Row(
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CartItemRow extends StatelessWidget {
+  final CartItem item;
+  const _CartItemRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp. ',
+      decimalDigits: 2,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey.shade400,
-                    foregroundColor: kWhiteColor,
-                    minimumSize: const Size.fromHeight(55),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+              Column(
+                children: [
+                  InkWell(
+                    onTap: () => context.read<DashboardBloc>().add(
+                      AddToCart(item.product),
+                    ),
+                    child: const Icon(
+                      Icons.add_circle_outline,
+                      color: kBrandColor,
+                      size: 20,
                     ),
                   ),
-                  onPressed: () {},
-                  child: const Text('Save Queue'),
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: () => context.read<DashboardBloc>().add(
+                      RemoveFromCart(item.product),
+                    ),
+                    child: const Icon(
+                      Icons.remove_circle_outline,
+                      color: Colors.red,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.product.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: kTextDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatter.format(item.product.price),
+                      style: const TextStyle(fontSize: 12, color: kTextGrey),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kBrandColor,
-                    foregroundColor: kWhiteColor,
-                    minimumSize: const Size.fromHeight(55),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Qty',
+                    style: TextStyle(fontSize: 11, color: kTextGrey),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${item.quantity}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: kTextDark,
                     ),
                   ),
-                  onPressed: () {},
-                  child: const Text('Pay Now'),
+                ],
+              ),
+              const SizedBox(width: 24),
+              Text(
+                formatter.format(item.subtotal),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: kTextDark,
                 ),
               ),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -529,14 +992,29 @@ class _SummaryColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: const [
-        _SummaryRow(label: 'Discount', value: '-Rp.0,00'),
-        _SummaryRow(label: 'Subtotal', value: 'Rp.0,00'),
-        _SummaryRow(label: 'Tax', value: '+Rp.0,00'),
-        _SummaryRow(label: 'Total', value: 'Rp.0,00', isBold: true),
-      ],
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final total = state.totalAmount;
+        final formatter = NumberFormat.currency(
+          locale: 'id_ID',
+          symbol: 'Rp ',
+          decimalDigits: 0,
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SummaryRow(label: 'Subtotal', value: formatter.format(total)),
+            _SummaryRow(label: 'Tax', value: 'Calculated by Server'),
+            const SizedBox(height: 4),
+            _SummaryRow(
+              label: 'Total Est.',
+              value: formatter.format(total),
+              isBold: true,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -547,7 +1025,6 @@ class _SummaryRow extends StatelessWidget {
   final bool isBold;
 
   const _SummaryRow({
-    super.key,
     required this.label,
     required this.value,
     this.isBold = false,
@@ -611,8 +1088,6 @@ class _PromoCodeButton extends StatelessWidget {
   }
 }
 
-// ================== SIDE MENU & HEADER ==================
-
 class _SideMenu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
@@ -669,25 +1144,17 @@ class _SideMenu extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 24, top: 8),
             child: InkWell(
-              // pada onTap logout
               onTap: () async {
                 final shouldLogout = await showDialog<bool>(
                   context: context,
-                  barrierDismissible: false, // harus tekan OK
+                  barrierDismissible: false,
                   builder: (context) => const _ShiftEndedDialog(),
                 );
 
                 if (shouldLogout == true) {
-                  // TODO: clear token / shift / state di sini
-
-                  // Arahkan ke halaman login utama (ganti sesuai routing kamu)
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const AuthPage()),
-                    (route) => false,
-                  );
+                  context.read<AuthBloc>().add(CloseShiftRequested());
                 }
               },
-
               child: SvgPicture.asset(
                 'assets/icons/logout.svg',
                 height: 28,
@@ -708,13 +1175,7 @@ class _ShiftEndedDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Overlay ungu transparan
-        Positioned.fill(
-          child: Container(
-            color: kBrandColor.withOpacity(0.35),
-          ),
-        ),
-        // Dialog putih di tengah
+        Positioned.fill(child: Container(color: kBrandColor.withOpacity(0.35))),
         Center(
           child: Container(
             width: 420,
@@ -747,10 +1208,7 @@ class _ShiftEndedDialog extends StatelessWidget {
                 const Text(
                   'Please log in to start the next shift.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: kTextGrey,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: kTextGrey, fontSize: 14),
                 ),
                 const SizedBox(height: 28),
                 SizedBox(
@@ -764,9 +1222,7 @@ class _ShiftEndedDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(22),
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.of(context).pop(true); // konfirmasi logout
-                    },
+                    onPressed: () => Navigator.of(context).pop(true),
                     child: const Text(
                       'OK',
                       style: TextStyle(
@@ -785,7 +1241,6 @@ class _ShiftEndedDialog extends StatelessWidget {
   }
 }
 
-
 class _TopHeaderGlobal extends StatelessWidget {
   final int currentIndex;
 
@@ -795,12 +1250,7 @@ class _TopHeaderGlobal extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isHomePage = currentIndex == 0;
-
-    // Hitung lebar header berdasarkan halaman
-    final headerWidth = isHomePage
-        ? screenWidth *
-              0.628 // Lebar penuh untuk home
-        : 80.0; // Hanya logo untuk halaman lain
+    final headerWidth = isHomePage ? screenWidth * 0.628 : 80.0;
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -817,11 +1267,8 @@ class _TopHeaderGlobal extends StatelessWidget {
           ),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 100),
-            switchInCurve: Curves.easeIn,
-            switchOutCurve: Curves.easeOut,
-            transitionBuilder: (child, animation) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+            transitionBuilder: (child, animation) =>
+                FadeTransition(opacity: animation, child: child),
             child: isHomePage
                 ? _HeaderFullContent(key: const ValueKey('full'))
                 : _HeaderLogoOnly(key: const ValueKey('logo')),
@@ -859,14 +1306,10 @@ class _HeaderFullContent extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const Spacer(), // ⬅️ Gunakan Spacer agar fleksibel
-          // Search box dengan flexible width
+          const Spacer(),
           Flexible(
             child: Container(
-              constraints: const BoxConstraints(
-                maxWidth: 260, // Maksimal 260
-                minWidth: 200, // Minimal 200
-              ),
+              constraints: const BoxConstraints(maxWidth: 260, minWidth: 200),
               height: 48,
               decoration: BoxDecoration(
                 color: kWhiteColor,

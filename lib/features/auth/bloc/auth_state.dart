@@ -7,24 +7,32 @@ class AuthState extends Equatable {
   final String? errorMessage;
   final bool isActivated;
   final bool isAuthenticated;
-  final String? username;
+  
+  final bool isShiftOpen; // Status Shift (Langkah 2 sukses)
+  final bool isPinValidated; // Status Validasi PIN (Langkah 1 sukses)
 
-  // Device info
+  final String? username;
   final String branchName;
   final List<Map<String, dynamic>> schedules;
-
-  // Carousel background index
   final int backgroundIndex;
+
+  // Data sementara setelah validasi PIN berhasil
+  final String? tempCashierId; 
+  final String? tempCashierName; 
 
   const AuthState({
     this.status = AuthStatus.initial,
     this.errorMessage,
     this.isActivated = false,
     this.isAuthenticated = false,
+    this.isShiftOpen = false,
+    this.isPinValidated = false, // Default false
     this.username,
     this.branchName = '',
     this.schedules = const [],
     this.backgroundIndex = 0,
+    this.tempCashierId,
+    this.tempCashierName,
   });
 
   AuthState copyWith({
@@ -32,20 +40,28 @@ class AuthState extends Equatable {
     String? errorMessage,
     bool? isActivated,
     bool? isAuthenticated,
+    bool? isShiftOpen,
+    bool? isPinValidated,
     String? username,
     String? branchName,
     List<Map<String, dynamic>>? schedules,
     int? backgroundIndex,
+    String? tempCashierId,
+    String? tempCashierName,
   }) {
     return AuthState(
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
       isActivated: isActivated ?? this.isActivated,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      isShiftOpen: isShiftOpen ?? this.isShiftOpen,
+      isPinValidated: isPinValidated ?? this.isPinValidated,
       username: username ?? this.username,
       branchName: branchName ?? this.branchName,
       schedules: schedules ?? this.schedules,
       backgroundIndex: backgroundIndex ?? this.backgroundIndex,
+      tempCashierId: tempCashierId ?? this.tempCashierId,
+      tempCashierName: tempCashierName ?? this.tempCashierName,
     );
   }
 
@@ -55,9 +71,13 @@ class AuthState extends Equatable {
         errorMessage,
         isActivated,
         isAuthenticated,
+        isShiftOpen,
+        isPinValidated,
         username,
         branchName,
         schedules,
         backgroundIndex,
+        tempCashierId,
+        tempCashierName,
       ];
 }
