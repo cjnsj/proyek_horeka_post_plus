@@ -14,6 +14,7 @@ import 'package:horeka_post_plus/features/dashboard/data/model/cart_model.dart';
 import 'package:horeka_post_plus/features/dashboard/data/product_model.dart';
 import 'package:horeka_post_plus/features/dashboard/dialogs/expense_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/dialogs/pin_kasir_dialog.dart';
+import 'package:horeka_post_plus/features/dashboard/dialogs/promo_code_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/dialogs/save_queue_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/dialogs/starting_balance_dialog.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
@@ -40,35 +41,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkStartupState();
-    });
+    print('🚀 [DEBUG UI] HomePage initState berjalan. Memanggil DashboardStarted...'); // <--- DEBUG 7
+    context.read<DashboardBloc>().add(DashboardStarted());
   }
 
-  // [PERBAIKAN LOGIKA STARTUP]
-  void _checkStartupState() {
-    final authState = context.read<AuthBloc>().state;
-
-    // 1. Jika shift sudah buka, load menu dan jangan tampilkan dialog apapun
-    if (authState.isShiftOpen) {
-      context.read<DashboardBloc>().add(FetchMenuRequested());
-      return;
-    }
-
-    // 2. Jika sedang ada dialog tampil, jangan tumpuk
-    if (_isDialogShowing) return;
-
-    // 3. Logika Pemilihan Dialog (Pilih satu saja)
-    if (authState.isPinValidated) {
-      // Kasus: PIN sudah benar, tapi belum input saldo (misal kena refresh)
-      // Tampilkan Dialog Saldo, BUKAN PIN
-      _showStartingBalanceDialog(authState.tempCashierId ?? '');
-    } else {
-      // Kasus: Belum login shift sama sekali
-      // Tampilkan Dialog PIN
-      _showPinDialog();
-    }
-  }
 
   void _showPinDialog() {
     if (_isDialogShowing) return; // Safety check
@@ -121,188 +97,158 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final cartWidth = screenWidth >= 1200 ? 430.0 : screenWidth * 0.32;
 
     return MultiBlocListener(
       listeners: [
+        // --- 1. Listener Auth ---
         BlocListener<AuthBloc, AuthState>(
           listener: (context, state) {
-            // 1. Handle Error
+            print("🔔 [LISTENER AUTH] Status: ${state.status}, ShiftOpen: ${state.isShiftOpen}");
+            
             if (state.status == AuthStatus.error) {
-              final isPinError =
-                  state.errorMessage?.toLowerCase().contains('pin') == true;
-
-              // Jika error bukan soal PIN (misal koneksi), tampilkan snackbar
-              // Error PIN sudah ditangani di dalam widget PinKasirDialog
+              final isPinError = state.errorMessage?.toLowerCase().contains('pin') == true;
               if (!isPinError) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.errorMessage ?? 'Terjadi kesalahan'),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 2),
-                  ),
+                  SnackBar(content: Text(state.errorMessage ?? 'Terjadi kesalahan'), backgroundColor: Colors.red),
                 );
               }
             }
 
-            // 2. Handle PIN Sukses -> Pindah ke Saldo Awal
-            // Kita tutup dialog PIN manual di sini, beri jeda, lalu buka dialog saldo
-            if (state.status == AuthStatus.success &&
-                state.isPinValidated &&
-                !state.isShiftOpen) {
-              
-              // Tutup dialog PIN jika sedang terbuka
-              if (_isDialogShowing) {
-                Navigator.of(context).pop(); 
-              }
-
-              // [PENTING] Beri jeda sedikit agar pop animation selesai
-              // sebelum membuka dialog baru. Ini mencegah "dialog tertumpuk/di belakang"
+            // PIN Sukses -> Saldo
+            if (state.status == AuthStatus.success && state.isPinValidated && !state.isShiftOpen) {
+              print("✅ [LOGIC] PIN Valid. Menutup dialog PIN & Buka Dialog Saldo.");
+              if (_isDialogShowing) Navigator.of(context).pop();
               Future.delayed(const Duration(milliseconds: 300), () {
-                if (mounted) {
-                  _showStartingBalanceDialog(state.tempCashierId ?? '');
-                }
+                if (mounted) _showStartingBalanceDialog(state.tempCashierId ?? '');
               });
             }
 
-            // 3. Handle Shift Sukses Dibuka -> Tutup Dialog Saldo
+            // Shift Sukses
             if (state.status == AuthStatus.success && state.isShiftOpen) {
-              if (_isDialogShowing) {
-                Navigator.of(context).pop(); // Tutup Starting Balance Dialog
-              }
-
+              print("✅ [LOGIC] Shift Terbuka! Simpan Sesi & Fetch Menu.");
+              if (_isDialogShowing) Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Shift berhasil dibuka!'),
-                  backgroundColor: Colors.green,
-                ),
+                const SnackBar(content: Text('Shift berhasil dibuka!'), backgroundColor: Colors.green),
               );
+              context.read<DashboardBloc>().add(SaveDashboardSession());
               context.read<DashboardBloc>().add(FetchMenuRequested());
             }
 
-            // 4. Handle Logout / Sesi Habis
+            // Logout
             if (state.status == AuthStatus.success && !state.isAuthenticated) {
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const AuthPage()),
-                (route) => false,
+                MaterialPageRoute(builder: (_) => const AuthPage()), (route) => false,
               );
             }
           },
         ),
-        // Listener Dashboard (Update: Menggunakan Toast & Tambah Queue)
+
+        // --- 2. Listener Dashboard ---
         BlocListener<DashboardBloc, DashboardState>(
           listener: (context, state) {
-            // 2. Pengeluaran Berhasil
-            if (state.status == DashboardStatus.expenseSuccess) {
-              Fluttertoast.showToast(
-                msg: "Pengeluaran Berhasil Dicatat!",
-                toastLength: Toast.LENGTH_SHORT,
-                gravity: ToastGravity.BOTTOM,
-                timeInSecForIosWeb: 1,
-                backgroundColor: Colors.green,
-                textColor: Colors.white,
-                fontSize: 16.0,
-              );
-            }
+            print("🔔 [LISTENER DASHBOARD] Status: ${state.status}, PinEntered: ${state.isPinEntered}");
 
-            // 3. Simpan Antrian Berhasil
-            if (state.status == DashboardStatus.queueSuccess) {
-              Fluttertoast.showToast(
-                msg: "Antrian Berhasil Disimpan!",
-                toastLength: Toast.LENGTH_SHORT,
-                gravity: ToastGravity.BOTTOM,
-                timeInSecForIosWeb: 1,
-                backgroundColor: Colors.blue, // Warna biru untuk antrian
-                textColor: Colors.white,
-                fontSize: 16.0,
-              );
+            // Cek Sesi
+            if (state.status == DashboardStatus.success) {
+              final authState = context.read<AuthBloc>().state;
+              if (!state.isPinEntered && !authState.isShiftOpen) {
+                print("⚠️ [LOGIC] Sesi belum ada & Shift belum buka -> Show PIN Dialog");
+                _showPinDialog();
+              }
             }
-
-            // 4. Error (Tetap gunakan SnackBar agar terbaca jelas)
-            if (state.status == DashboardStatus.error) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.errorMessage ?? 'Terjadi Kesalahan'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
+            // Toasts...
+            if (state.status == DashboardStatus.expenseSuccess) Fluttertoast.showToast(msg: "Pengeluaran Berhasil!", backgroundColor: Colors.green);
+            if (state.status == DashboardStatus.queueSuccess) Fluttertoast.showToast(msg: "Antrian Disimpan!", backgroundColor: Colors.blue);
+            if (state.status == DashboardStatus.error) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Error'), backgroundColor: Colors.red));
           },
         ),
       ],
-      child: BlocBuilder<AuthBloc, AuthState>(
-        builder: (context, state) {
-          final canInteract =
-              state.isShiftOpen && state.status != AuthStatus.loading;
+      // UI Builder
+      child: BlocBuilder<DashboardBloc, DashboardState>(
+        builder: (context, dashboardState) {
+          return BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, authState) {
+              
+              // LOGIKA LOADING (Penyebab Terkunci)
+              final bool isAuthLoading = authState.status == AuthStatus.loading;
+              final bool isDashLoading = dashboardState.status == DashboardStatus.loading;
+              final bool isLoading = isAuthLoading || isDashLoading;
 
-          return Stack(
-            children: [
-              Scaffold(
-                backgroundColor: kBackgroundColor,
-                resizeToAvoidBottomInset: false,
-                body: SafeArea(
-                  child: AbsorbPointer(
-                    absorbing: !canInteract,
-                    child: Stack(
-                      children: [
-                        if (_index == 0)
-                          Positioned.fill(
-                            top: 16,
-                            bottom: 16,
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: SizedBox(
-                                width: cartWidth,
-                                child: const _CartAreaFullScreen(),
+              // PRINT DEBUG UI SETIAP KALI REBUILD
+              // Perhatikan log ini di console!
+              print("🎨 [BUILD UI] ------------------------------------------------");
+              print("   -> Auth Status      : ${authState.status} (Loading? $isAuthLoading)");
+              print("   -> Dashboard Status : ${dashboardState.status} (Loading? $isDashLoading)");
+              print("   -> Is Shift Open    : ${authState.isShiftOpen}");
+              print("   -> Is Pin Entered   : ${dashboardState.isPinEntered}");
+              print("   -> FINAL IS LOADING : $isLoading (Jika TRUE, Layar Terkunci!)");
+              print("---------------------------------------------------------------");
+
+              return Stack(
+                children: [
+                  Scaffold(
+                    backgroundColor: kBackgroundColor,
+                    resizeToAvoidBottomInset: false,
+                    // [PENTING] AbsorbPointer DIHAPUS. Interaksi diatur oleh ModalBarrier di bawah.
+                    body: SafeArea(
+                      child: Stack(
+                        children: [
+                          if (_index == 0)
+                            Positioned.fill(
+                              top: 16, bottom: 16,
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: SizedBox(width: cartWidth, child: const _CartAreaFullScreen()),
                               ),
                             ),
-                          ),
-                        if (_index == 1)
-                          const Positioned.fill(child: ReportPage()),
-                        if (_index == 2)
-                          const Positioned.fill(child: PrinterSettingsPage()),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 24,
-                          ),
-                          child: Column(
-                            children: [
-                              _TopHeaderGlobal(currentIndex: _index),
-                              const SizedBox(height: 16),
-                              Expanded(
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _SideMenu(
-                                      index: _index,
-                                      onTap: (i) => setState(() => _index = i),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    if (_index == 0)
-                                      const Expanded(child: _ProductOnlyArea()),
-                                  ],
+                          if (_index == 1) const Positioned.fill(child: ReportPage()),
+                          if (_index == 2) const Positioned.fill(child: PrinterSettingsPage()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                            child: Column(
+                              children: [
+                                _TopHeaderGlobal(currentIndex: _index),
+                                const SizedBox(height: 16),
+                                Expanded(
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _SideMenu(index: _index, onTap: (i) => setState(() => _index = i)),
+                                      const SizedBox(width: 16),
+                                      if (_index == 0) const Expanded(child: _ProductOnlyArea()),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // [OVERLAY LOADING]
+                  // Jika isLoading == true, widget ini muncul menutupi layar -> Klik tidak tembus
+                  // [OVERLAY LOADING: HANYA SPINNER]
+                  if (isLoading)
+                    Stack(
+                      children: [
+                        // Tembok transparan (tetap ada agar layar tidak bisa diklik)
+                        const ModalBarrier(dismissible: false, color: Colors.black38),
+                        
+                        // Spinner langsung di tengah tanpa kotak putih
+                        const Center(
+                          child: CircularProgressIndicator(color: kBrandColor),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-              if (state.status == AuthStatus.loading)
-                Container(
-                  color: Colors.black.withOpacity(0.3),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: kBrandColor),
-                  ),
-                ),
-            ],
+                ],
+              );
+            },
           );
         },
       ),
@@ -834,8 +780,7 @@ class _CartContent extends StatelessWidget {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         if (state.cartItems.isEmpty) {
-          return Expanded(
-            child: Center(
+          return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
@@ -848,7 +793,6 @@ class _CartContent extends StatelessWidget {
                   Text('Keranjang Kosong', style: TextStyle(color: kTextGrey)),
                 ],
               ),
-            ),
           );
         }
 
@@ -1087,7 +1031,12 @@ class _SummaryColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
-        final total = state.totalAmount;
+        final subtotal = state.totalAmount;
+        final discount = state.discountAmount; // Ambil nilai diskon dari State
+        final total = state.finalTotalAmount;  // Ambil total akhir (Subtotal - Diskon)
+        final tax = state.taxValue;            // [BARU] Pajak Real dari State
+      
+
         final formatter = NumberFormat.currency(
           locale: 'id_ID',
           symbol: 'Rp ',
@@ -1097,12 +1046,41 @@ class _SummaryColumn extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SummaryRow(label: 'Subtotal', value: formatter.format(total)),
-            _SummaryRow(label: 'Tax', value: 'Calculated by Server'),
-            const SizedBox(height: 4),
+            // 1. Subtotal (Harga Barang)
             _SummaryRow(
-              label: 'Total Est.',
-              value: formatter.format(total),
+              label: 'Subtotal', 
+              value: formatter.format(subtotal)
+            ),
+            
+            // 2. Diskon (Hanya muncul jika nilai diskon > 0)
+            if (discount > 0)
+              _SummaryRow(
+                label: 'Discount (${state.appliedPromoCode ?? 'Promo'})',
+                value: '- ${formatter.format(discount)}', // Tanda minus agar jelas
+                textColor: Colors.green, // Warna hijau agar menonjol
+              )
+            else
+              // Opsional: Jika ingin tetap menampilkan baris diskon meski 0
+              const _SummaryRow(
+                label: 'Discount', 
+                value: 'Rp 0', 
+                textColor: kTextGrey
+              ),
+
+            // 3. [UPDATE] Tax (Pajak) - Menggunakan Data Real
+            _SummaryRow(
+              // Jika ada pajak > 0%, tampilkan labelnya, misal: "Tax (11%)"
+              label: state.taxPercentage > 0 
+                  ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)' 
+                  : 'Tax',
+              value: formatter.format(tax), 
+            ),
+
+            
+            // 4. Total Akhir
+            _SummaryRow(
+              label: 'Total',
+              value: formatter.format(total), // Total yang sudah dikurangi diskon
               isBold: true,
             ),
           ],
@@ -1111,22 +1089,24 @@ class _SummaryColumn extends StatelessWidget {
     );
   }
 }
-
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isBold;
+  final Color? textColor; // [BARU] Tambahkan properti ini
 
   const _SummaryRow({
     required this.label,
     required this.value,
     this.isBold = false,
+    this.textColor, // [BARU] Tambahkan di constructor
   });
 
   @override
   Widget build(BuildContext context) {
     final style = TextStyle(
-      color: kTextGrey,
+      // Gunakan textColor jika ada, jika tidak gunakan kTextGrey (default)
+      color: textColor ?? kTextGrey, 
       fontSize: 13,
       fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
     );
@@ -1142,45 +1122,91 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
-
 class _PromoCodeButton extends StatelessWidget {
   const _PromoCodeButton();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 32,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          side: const BorderSide(color: kBorderColor),
-        ),
-        onPressed: () {},
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SvgPicture.asset(
-              'assets/icons/promocode.svg',
-              width: 16,
-              height: 16,
-            ),
-            const SizedBox(width: 6),
-            const Text(
-              'Promo Code',
-              style: TextStyle(
-                color: kTextDark,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final hasPromo = state.appliedPromoCode != null;
+        final activeColor = Colors.green;
+
+        return SizedBox(
+          height: 32,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
+              side: BorderSide(
+                color: hasPromo ? activeColor : kBorderColor,
+              ),
+              backgroundColor: hasPromo ? activeColor.withOpacity(0.1) : null,
             ),
-          ],
-        ),
-      ),
+            onPressed: () {
+              if (hasPromo) {
+                // Hapus promo
+                context.read<DashboardBloc>().add(RemovePromoCode());
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Kode promo dihapus")),
+                );
+              } else {
+                // Input promo (Panggil Dialog Baru)
+                _showPromoInput(context);
+              }
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/promocode.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: hasPromo 
+                      ? ColorFilter.mode(activeColor, BlendMode.srcIn) 
+                      : null,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  hasPromo ? state.appliedPromoCode! : 'Promo Code',
+                  style: TextStyle(
+                    color: hasPromo ? activeColor : kTextDark,
+                    fontSize: 11,
+                    fontWeight: hasPromo ? FontWeight.bold : FontWeight.w500,
+                  ),
+                ),
+                if (hasPromo) ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.close, size: 14, color: activeColor)
+                ]
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // [UPDATE] Menggunakan PromoCodeDialog yang baru
+  void _showPromoInput(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: kBrandColor.withOpacity(0.5), // Efek overlay sesuai style app
+      builder: (ctx) {
+        return PromoCodeDialog(
+          onApplyPromo: (code) {
+            // Panggil Bloc saat tombol Enter ditekan
+            context.read<DashboardBloc>().add(ApplyPromoCode(code));
+          },
+        );
+      },
     );
   }
 }
-
+ 
 class _SideMenu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
@@ -1200,58 +1226,92 @@ class _SideMenu extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 110),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 30),
+          
+          // --- Menu 1: Print ---
+          Material(
+            color: Colors.transparent,
             child: InkWell(
               onTap: () => onTap(0),
-              child: SvgPicture.asset(
-                'assets/icons/print.svg',
-                height: 28,
-                width: 28,
+              // [PERBAIKAN] Padding dipindah ke dalam InkWell agar area sentuh luas
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+                child: SvgPicture.asset(
+                  'assets/icons/print.svg',
+                  height: 28,
+                  width: 28,
+                  // Opsional: Beri warna jika sedang aktif (index == 0)
+                  
+                ),
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 30),
+
+          // --- Menu 2: Report ---
+          Material(
+            color: Colors.transparent,
             child: InkWell(
               onTap: () => onTap(1),
-              child: SvgPicture.asset(
-                'assets/icons/document.svg',
-                height: 28,
-                width: 28,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+                child: SvgPicture.asset(
+                  'assets/icons/document.svg',
+                  height: 28,
+                  width: 28,
+                  
+                ),
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 30),
+
+          // --- Menu 3: Settings ---
+          Material(
+            color: Colors.transparent,
             child: InkWell(
               onTap: () => onTap(2),
-              child: SvgPicture.asset(
-                'assets/icons/settings.svg',
-                height: 22,
-                width: 22,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+                child: SvgPicture.asset(
+                  'assets/icons/settings.svg',
+                  height: 22, // Ukuran asli icon settings
+                  width: 22,
+                
+                ),
               ),
             ),
           ),
+
           const Spacer(),
+
+          // --- Logout ---
           Padding(
             padding: const EdgeInsets.only(bottom: 24, top: 8),
-            child: InkWell(
-              onTap: () async {
-                final shouldLogout = await showDialog<bool>(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => const _ShiftEndedDialog(),
-                );
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  final shouldLogout = await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const _ShiftEndedDialog(),
+                  );
 
-                if (shouldLogout == true) {
-                  context.read<AuthBloc>().add(CloseShiftRequested());
-                }
-              },
-              child: SvgPicture.asset(
-                'assets/icons/logout.svg',
-                height: 28,
-                width: 28,
+                  if (shouldLogout == true) {
+                    // ignore: use_build_context_synchronously
+                    context.read<AuthBloc>().add(CloseShiftRequested());
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0), // Padding untuk area sentuh
+                  child: SvgPicture.asset(
+                    'assets/icons/logout.svg',
+                    height: 28,
+                    width: 28,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1260,9 +1320,8 @@ class _SideMenu extends StatelessWidget {
     );
   }
 }
-
 class _ShiftEndedDialog extends StatelessWidget {
-  const _ShiftEndedDialog({super.key});
+  const _ShiftEndedDialog();
 
   @override
   Widget build(BuildContext context) {
@@ -1382,6 +1441,7 @@ class _HeaderFullContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
+          // Logo
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.asset(
@@ -1392,53 +1452,62 @@ class _HeaderFullContent extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const Text(
-            'Horeka Pos+',
-            style: TextStyle(
-              color: kBrandColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
+          
+          // Judul (Bungkus Flexible agar bisa mengecil jika sempit)
+          const Flexible(
+            child: Text(
+              'Horeka Pos+',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: kBrandColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
-          const Spacer(),
-          Flexible(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 260, minWidth: 200),
-              height: 48,
-              decoration: BoxDecoration(
-                color: kWhiteColor,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: kCardShadow,
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        hintText: 'Find menu',
-                        hintStyle: TextStyle(color: kTextGrey, fontSize: 14),
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+          
+          const Spacer(), // Pemisah fleksibel
+          
+          // Search Bar
+          // [PERBAIKAN] Ubah Flexible ke Expanded atau sesuaikan constraints
+          Container(
+            // Hapus minWidth: 200 agar tidak overflow di layar kecil
+            constraints: const BoxConstraints(maxWidth: 260), 
+            height: 48,
+            decoration: BoxDecoration(
+              color: kWhiteColor,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: kCardShadow,
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Find menu',
+                      hintStyle: TextStyle(color: kTextGrey, fontSize: 13), // Perkecil font sedikit
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: kBrandColor,
-                    ),
-                    child: const Icon(
-                      Icons.search,
-                      color: kWhiteColor,
-                      size: 20,
-                    ),
+                ),
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: kBrandColor,
                   ),
-                ],
-              ),
+                  child: const Icon(
+                    Icons.search,
+                    color: kWhiteColor,
+                    size: 18, // Perkecil icon sedikit
+                  ),
+                ),
+              ],
             ),
           ),
         ],

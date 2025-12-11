@@ -5,7 +5,6 @@ import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_state.dart';
 import 'package:horeka_post_plus/features/auth/view/widgets/activation_form.dart';
 import 'package:horeka_post_plus/features/auth/view/widgets/login_form.dart';
-import 'package:horeka_post_plus/features/dashboard/view/home_page.dart';
 
 class AuthPage extends StatelessWidget {
   const AuthPage({super.key});
@@ -47,12 +46,6 @@ class AuthPage extends StatelessWidget {
           if (state.status == AuthStatus.authenticated &&
               state.isAuthenticated) {
             ScaffoldMessenger.of(context).clearSnackBars();
-
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => const HomePage(),
-              ),
-            );
           }
         },
         child: BlocBuilder<AuthBloc, AuthState>(

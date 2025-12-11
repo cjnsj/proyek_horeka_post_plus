@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:horeka_post_plus/features/dashboard/data/model/report_models.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +7,7 @@ import 'package:horeka_post_plus/features/dashboard/data/product_model.dart';
 import 'package:horeka_post_plus/features/dashboard/data/model/cart_model.dart';
 import 'package:horeka_post_plus/features/dashboard/data/model/category_model.dart';
 import 'package:horeka_post_plus/features/dashboard/data/queue_model.dart';
+import 'package:horeka_post_plus/features/dashboard/data/model/report_models.dart';
 
 class DashboardRepository {
   // 1. Ambil Menu Produk
@@ -75,17 +75,26 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      final localTabletId =
-          prefs.getString('local_tablet_id') ?? 'ID_KOSONG_DARI_PREFS';
 
-      if (token == null) throw Exception('Token not found.');
+      final localTabletId =
+          prefs.getString('local_tablet_id') ?? 'unknown-device';
 
       final url = '${AppConstants.apiBaseUrl}/transaction';
 
       final body = {
-        "items": items.map((e) => e.toJson()).toList(),
+        "items": items
+            .map(
+              (item) => {
+                "product_id": item.product.productId,
+                "quantity": item.quantity,
+                "item_note": item.note ?? "",
+              },
+            )
+            .toList(),
         "payment_method": paymentMethod,
         "local_tablet_id": localTabletId,
+
+        // Kirim promo code jika ada
         if (promoCode != null && promoCode.isNotEmpty) "promo_code": promoCode,
       };
 
@@ -100,11 +109,15 @@ class DashboardRepository {
         body: jsonEncode(body),
       );
 
-      if (response.statusCode == 201) {
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        print(
+          "✅ [REPO] Transaction Success: ${responseData['data']['receipt_number']}",
+        );
         return;
       } else {
-        final data = jsonDecode(response.body);
-        throw Exception(data['message'] ?? 'Transaksi gagal');
+        throw Exception(responseData['message'] ?? 'Gagal memproses transaksi');
       }
     } catch (e) {
       throw Exception(e.toString().replaceAll('Exception: ', ''));
@@ -154,7 +167,9 @@ class DashboardRepository {
         return;
       } else {
         if (response.body.trim().startsWith('<')) {
-          throw Exception('Server Error (HTML). Status: ${response.statusCode}');
+          throw Exception(
+            'Server Error (HTML). Status: ${response.statusCode}',
+          );
         }
         final data = jsonDecode(response.body);
         throw Exception(data['message'] ?? 'Gagal mencatat pengeluaran');
@@ -279,7 +294,6 @@ class DashboardRepository {
   }
 
   // 8. Cari Transaksi (Void Mode - Search Manual)
-  // [METODE YANG HILANG SEBELUMNYA]
   Future<List<dynamic>> searchTransactions(String query) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -287,7 +301,7 @@ class DashboardRepository {
       if (token == null) throw Exception('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/transaction?search=$query';
-      
+
       print("🔍 [REPO] Search Transactions: $url");
 
       final response = await http.get(
@@ -300,9 +314,8 @@ class DashboardRepository {
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
-        // Handle format response {data: [...]} atau [...]
-        final List<dynamic> data = (body is Map && body.containsKey('data')) 
-            ? body['data'] 
+        final List<dynamic> data = (body is Map && body.containsKey('data'))
+            ? body['data']
             : (body is List ? body : []);
         return data;
       } else {
@@ -315,7 +328,6 @@ class DashboardRepository {
   }
 
   // 9. Ambil Transaksi Shift Saat Ini (Void Mode - Auto Load)
-  // [METODE YANG DIBUTUHKAN BLOC]
   Future<List<dynamic>> getCurrentShiftTransactions() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -323,7 +335,7 @@ class DashboardRepository {
       if (token == null) throw Exception('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/transaction/current-shift';
-      
+
       print("🔍 [REPO] Get Current Shift: $url");
 
       final response = await http.get(
@@ -336,8 +348,8 @@ class DashboardRepository {
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
-        final List<dynamic> data = (body is Map && body.containsKey('data')) 
-            ? body['data'] 
+        final List<dynamic> data = (body is Map && body.containsKey('data'))
+            ? body['data']
             : (body is List ? body : []);
         return data;
       } else {
@@ -350,7 +362,6 @@ class DashboardRepository {
   }
 
   // 10. Request Void Transaksi (Pengajuan)
-  // [METODE YANG DIBUTUHKAN BLOC - NAMA DISESUAIKAN]
   Future<void> requestVoidTransaction({
     required String transactionId,
     required String reason,
@@ -360,8 +371,8 @@ class DashboardRepository {
       final token = prefs.getString(AppConstants.tokenKey);
       if (token == null) throw Exception('Token not found.');
 
-      // Endpoint Backend: POST /api/transaction/:id/void-request
-      final url = '${AppConstants.apiBaseUrl}/transaction/$transactionId/void-request';
+      final url =
+          '${AppConstants.apiBaseUrl}/transaction/$transactionId/void-request';
 
       final body = {"reason": reason};
 
@@ -376,9 +387,8 @@ class DashboardRepository {
         body: jsonEncode(body),
       );
 
-      // Backend bisa mengembalikan 200 atau 202
       if (response.statusCode == 200 || response.statusCode == 202) {
-        return; 
+        return;
       } else {
         final data = jsonDecode(response.body);
         throw Exception(data['message'] ?? 'Gagal mengajukan void');
@@ -388,12 +398,9 @@ class DashboardRepository {
     }
   }
 
+  // ==================== FITUR REPORT ====================
 
-// ==================== FITUR REPORT (BARU) ====================
-
-  // ---------------------------------------------------------------------------
-  // 11. Get Sales Report (UPDATE: Kirim cashierId)
-  // ---------------------------------------------------------------------------
+  // 11. Get Sales Report
   Future<SalesReportModel> getSalesReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -401,8 +408,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      // [PENTING] Ambil ID Kasir yang login via PIN
-      final cashierId = prefs.getString('user_id'); // Pastikan key-nya sesuai saat login
+      final cashierId = prefs.getString('user_id');
 
       String url = '${AppConstants.apiBaseUrl}/report/sales';
 
@@ -414,7 +420,6 @@ class DashboardRepository {
         params.add('tanggalSelesai=$endStr');
       }
 
-      // [UPDATE] Kirim cashierId ke Backend
       if (cashierId != null) {
         params.add('cashierId=$cashierId');
       }
@@ -423,9 +428,10 @@ class DashboardRepository {
         url += '?${params.join('&')}';
       }
 
-      final response = await http.get(Uri.parse(url), headers: {
-        'Authorization': 'Bearer $token',
-      });
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -437,9 +443,7 @@ class DashboardRepository {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 12. Get Item Report (UPDATE: Kirim cashierId)
-  // ---------------------------------------------------------------------------
+  // 12. Get Item Report
   Future<List<ItemReportModel>> getItemReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -448,7 +452,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      final cashierId = prefs.getString('user_id'); // [PENTING]
+      final cashierId = prefs.getString('user_id');
 
       String url = '${AppConstants.apiBaseUrl}/report/items';
 
@@ -466,7 +470,6 @@ class DashboardRepository {
         params.add('status=COMPLETED');
       }
 
-      // [UPDATE] Kirim cashierId
       if (cashierId != null) {
         params.add('cashierId=$cashierId');
       }
@@ -475,9 +478,10 @@ class DashboardRepository {
         url += '?${params.join('&')}';
       }
 
-      final response = await http.get(Uri.parse(url), headers: {
-        'Authorization': 'Bearer $token',
-      });
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
@@ -489,9 +493,7 @@ class DashboardRepository {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 13. Get Expense Report (UPDATE: Kirim cashierId)
-  // ---------------------------------------------------------------------------
+  // 13. Get Expense Report
   Future<ExpenseReportModel> getExpenseReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -499,7 +501,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      final cashierId = prefs.getString('user_id'); // [PENTING]
+      final cashierId = prefs.getString('user_id');
 
       String url = '${AppConstants.apiBaseUrl}/report/expenses';
 
@@ -511,7 +513,6 @@ class DashboardRepository {
         params.add('tanggalSelesai=$endStr');
       }
 
-      // [UPDATE] Kirim cashierId
       if (cashierId != null) {
         params.add('cashierId=$cashierId');
       }
@@ -520,9 +521,10 @@ class DashboardRepository {
         url += '?${params.join('&')}';
       }
 
-      final response = await http.get(Uri.parse(url), headers: {
-        'Authorization': 'Bearer $token',
-      });
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -532,6 +534,124 @@ class DashboardRepository {
     } catch (e) {
       throw Exception(e.toString());
     }
-  } 
+  }
+
+  // 14. Hapus Antrian
+  // [PERBAIKAN] Menggunakan parameter String id
+  Future<void> deleteQueue(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+
+      final response = await http.delete(
+        Uri.parse('${AppConstants.apiBaseUrl}/queue/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Gagal menghapus antrian');
+      }
+    } catch (e) {
+      throw Exception(e.toString());
+    }
+  }
+
+  // 15. Hitung Diskon (Promo Code)
+  // [PERBAIKAN] Mengarah ke endpoint /transaction/calculate
+  Future<Map<String, dynamic>> calculateDiscount({
+    required List<CartItem> items,
+    required String promoCode,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+      if (token == null) throw Exception('Token not found.');
+
+      // Endpoint sesuai backend baru
+      final url = '${AppConstants.apiBaseUrl}/transaction/calculate';
+
+      final body = {
+        "promo_code": promoCode,
+        "items": items
+            .map(
+              (item) => {
+                "product_id": item.product.productId,
+                "quantity": item.quantity,
+              },
+            )
+            .toList(),
+      };
+
+      print("🚀 [REPO] Cek Diskon ke: $url");
+      print("📦 [REPO] Body: ${jsonEncode(body)}");
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      print("📥 [REPO] Status: ${response.statusCode}");
+      print("📥 [REPO] Response: ${response.body}");
+
+      if (response.body.trim().startsWith('<')) {
+        throw Exception(
+          'Server Error: Backend belum direstart atau URL salah.',
+        );
+      }
+
+      final responseJson = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        // Backend baru mengembalikan format: { message: "...", data: { total_discount: "..." } }
+        return responseJson['data'];
+      } else {
+        throw Exception(
+          responseJson['message'] ?? 'Gagal memproses kode promo',
+        );
+      }
+    } catch (e) {
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  // ==================== TAX SETTINGS (PAJAK) [READ ONLY] ====================
+
+  // 16. Ambil Pengaturan Pajak (GET) - HANYA INI YANG DISISAKAN
+  Future<Map<String, dynamic>> getTaxSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+      
+      final url = '${AppConstants.apiBaseUrl}/branch/tax';
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Gagal memuat pengaturan pajak');
+      }
+    } catch (e) {
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
   
+
 }
+
+
+  
+

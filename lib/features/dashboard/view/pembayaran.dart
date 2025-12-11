@@ -23,7 +23,7 @@ class _PaymentPageState extends State<PaymentPage> {
     decimalDigits: 0,
   );
 
-  // --- LOGIKA NUMPAD (TIDAK BERUBAH) ---
+  // --- LOGIKA NUMPAD ---
   void _onNumberPressed(String value) {
     setState(() {
       if (value == '⌫') {
@@ -44,13 +44,14 @@ class _PaymentPageState extends State<PaymentPage> {
     });
   }
 
-  // --- [BARU] LOGIKA PROSES BAYAR ---
+  // --- LOGIKA PROSES BAYAR ---
   void _processPayment(BuildContext context, double totalAmount) {
     if (selectedPaymentMethod == 'Cash') {
       // Validasi Uang Tunai
       final cleanAmount = _paymentController.text.replaceAll(RegExp(r'[^0-9]'), '');
       final inputCash = int.tryParse(cleanAmount) ?? 0;
 
+      // Cek apakah uang tunai kurang dari Total Tagihan (Final)
       if (inputCash < totalAmount) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -66,18 +67,21 @@ class _PaymentPageState extends State<PaymentPage> {
             const CreateTransactionRequested(paymentMethod: "CASH"),
           );
     } else {
-      // Kirim Event Transaksi Non-Tunai (QRIS, dll)
+      // Kirim Event Transaksi Non-Tunai
       String methodApi = selectedPaymentMethod.toUpperCase();
-      // Handle penamaan khusus jika ada
-      if (methodApi.contains("QRIS")) methodApi = "QRIS";
       
+      // Mapping nama method dari UI ke API Backend
+      if (selectedPaymentMethod == 'Qris') methodApi = "QRIS";
+      if (selectedPaymentMethod == 'Debit/Credit') methodApi = "DEBIT";
+      if (selectedPaymentMethod == 'Cash + Debit/Credit') methodApi = "SPLIT"; // Sesuaikan jika ada logic split
+
       context.read<DashboardBloc>().add(
             CreateTransactionRequested(paymentMethod: methodApi),
           );
     }
   }
 
-  // --- [UPDATE] DIALOG QRIS (MENGHUBUNGKAN TOMBOL REFRESH/CHECK) ---
+  // --- DIALOG QRIS ---
   void _showQrisDialog() {
     showDialog(
       context: context,
@@ -127,7 +131,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
                 const SizedBox(height: 24),
 
-                // NMID
                 const Text(
                   'NMID : ID83764643838283',
                   style: TextStyle(
@@ -138,7 +141,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
                 const SizedBox(height: 16),
 
-                // Total Label
                 const Text(
                   'Total',
                   style: TextStyle(
@@ -150,18 +152,18 @@ class _PaymentPageState extends State<PaymentPage> {
 
                 const SizedBox(height: 8),
 
-                // Total Amount (Ambil dari State Bloc nanti saat dipanggil, disini placeholder visual)
+                // Total Amount
                 BlocBuilder<DashboardBloc, DashboardState>(
                   builder: (context, state) {
                     return Text(
-                      currencyFormat.format(state.totalAmount),
+                      currencyFormat.format(state.finalTotalAmount),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
                     );
-                  }
+                  },
                 ),
 
                 const SizedBox(height: 32),
@@ -196,7 +198,6 @@ class _PaymentPageState extends State<PaymentPage> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          // [LOGIC] Refresh QRIS / Check Status -> Anggap Sukses & Kirim Transaksi
                           Navigator.of(context).pop();
                           context.read<DashboardBloc>().add(
                             const CreateTransactionRequested(paymentMethod: "QRIS"),
@@ -211,7 +212,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           elevation: 0,
                         ),
                         child: const Text(
-                          'Refresh QRIS',
+                          'Check Status',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -232,7 +233,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    // [INTEGRASI] Menggunakan BlocConsumer untuk Data Real & Listener
     return BlocConsumer<DashboardBloc, DashboardState>(
       listener: (context, state) {
         if (state.status == DashboardStatus.transactionSuccess) {
@@ -265,22 +265,17 @@ class _PaymentPageState extends State<PaymentPage> {
         }
       },
       builder: (context, state) {
-        // [DATA ASLI] Mengambil data dari State
         final cartItems = state.cartItems;
-        final totalAmount = state.totalAmount.toDouble();
-        final discount = 0.0; // Bisa diupdate jika ada logika diskon
-        final tax = 0.0;      // Bisa diupdate jika ada logika pajak
-        // Total kalkulasi akhir (jika ada logic tambahan, sesuaikan disini)
-        final total = totalAmount - discount + tax;
+        final totalAmount = state.totalAmount.toDouble(); 
+        final discount = state.discountAmount.toDouble(); 
+        final tax = state.taxValue;      
+        final total = state.finalTotalAmount.toDouble();
 
         return Scaffold(
           backgroundColor: Colors.white,
           body: Padding(
             padding: const EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: 35,
+              left: 20, right: 20, top: 20, bottom: 35,
             ),
             child: Container(
               decoration: BoxDecoration(
@@ -290,12 +285,9 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
               child: Column(
                 children: [
-                  // Header dengan Back Button, Title, dan Print Button
+                  // HEADER
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       border: Border(
                         bottom: BorderSide(color: Colors.grey.shade300, width: 1),
@@ -304,11 +296,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.black,
-                            size: 24,
-                          ),
+                          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -324,13 +312,9 @@ class _PaymentPageState extends State<PaymentPage> {
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(
-                            Icons.print,
-                            color: Colors.green,
-                            size: 28,
-                          ),
+                          icon: const Icon(Icons.print, color: Colors.green, size: 28),
                           onPressed: () {
-                            // TODO: Print receipt
+                            // TODO: Print receipt logic
                           },
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -339,56 +323,41 @@ class _PaymentPageState extends State<PaymentPage> {
                     ),
                   ),
 
-                  // Content - 3 kolom
+                  // CONTENT
                   Expanded(
                     child: Row(
                       children: [
-                        // Left Section - Cart Items (1/3)
+                        // LEFT: ITEM LIST
                         Expanded(
                           child: Container(
                             decoration: BoxDecoration(
                               border: Border(
-                                right: BorderSide(
-                                  color: Colors.grey.shade300,
-                                  width: 1,
-                                ),
+                                right: BorderSide(color: Colors.grey.shade300, width: 1),
                               ),
                             ),
                             child: Column(
                               children: [
-                                // Header kategori & item
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
                                     border: Border(
-                                      bottom: BorderSide(
-                                        color: Colors.grey.shade300,
-                                        width: 1,
-                                      ),
+                                      bottom: BorderSide(color: Colors.grey.shade300, width: 1),
                                     ),
                                   ),
                                   child: Row(
                                     children: [
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.center,
                                           children: [
-                                            Text(
-                                              'Item', // Disederhanakan dari BSS
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.black87,
-                                              ),
+                                            const Text(
+                                              'Item',
+                                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
                                               'Detail Pesanan',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey.shade600,
-                                              ),
+                                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                                             ),
                                           ],
                                         ),
@@ -396,8 +365,6 @@ class _PaymentPageState extends State<PaymentPage> {
                                     ],
                                   ),
                                 ),
-
-                                // Item details [DATA ASLI]
                                 Expanded(
                                   child: ListView.separated(
                                     padding: const EdgeInsets.all(16),
@@ -408,10 +375,8 @@ class _PaymentPageState extends State<PaymentPage> {
                                       return Padding(
                                         padding: const EdgeInsets.symmetric(vertical: 4.0),
                                         child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            // Nama Produk
                                             Expanded(
                                               flex: 2,
                                               child: Column(
@@ -419,42 +384,25 @@ class _PaymentPageState extends State<PaymentPage> {
                                                 children: [
                                                   Text(
                                                     item.product.name,
-                                                    style: const TextStyle(
-                                                      fontSize: 15,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: Colors.black87,
-                                                    ),
+                                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.black87),
                                                   ),
                                                   Text(
                                                     currencyFormat.format(item.product.price),
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.grey.shade600,
-                                                    ),
+                                                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                            // Qty
                                             Text(
                                               'x${item.quantity}',
-                                              style: const TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.black87,
-                                              ),
+                                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
                                             ),
                                             const SizedBox(width: 24),
-                                            // Total harga per item
                                             Expanded(
                                               child: Text(
                                                 currencyFormat.format(item.subtotal),
                                                 textAlign: TextAlign.right,
-                                                style: const TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.black87,
-                                                ),
+                                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
                                               ),
                                             ),
                                           ],
@@ -463,124 +411,88 @@ class _PaymentPageState extends State<PaymentPage> {
                                     },
                                   ),
                                 ),
-
-                                
                               ],
                             ),
                           ),
                         ),
 
-                        // Middle Section - Payment Summary (1/3)
+                        // MIDDLE: SUMMARY
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               border: Border(
-                                right: BorderSide(
-                                  color: Colors.grey.shade300,
-                                  width: 1,
-                                ),
+                                right: BorderSide(color: Colors.grey.shade300, width: 1),
                               ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Summary [DATA ASLI]
-                                _buildSummaryRow(
-                                  'Discount',
-                                  discount,
-                                  isNegative: true,
-                                ),
-                                const SizedBox(height: 16),
                                 _buildSummaryRow('Subtotal', totalAmount),
                                 const SizedBox(height: 16),
-                                _buildSummaryRow('Tax', tax, isPositive: true),
+
+                                if (discount > 0) ...[
+                                  _buildSummaryRow(
+                                    'Discount (${state.appliedPromoCode ?? 'Promo'})',
+                                    discount,
+                                    isNegative: true,
+                                    color: Colors.green,
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+
+                                _buildSummaryRow(
+                                  state.taxPercentage > 0 
+                                      ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)'
+                                      : 'Tax',
+                                  tax,
+                                  isPositive: true,
+                                ),
                                 const SizedBox(height: 16),
+
                                 _buildSummaryRow('Total', total, isBold: true),
 
                                 const Spacer(flex: 12),
 
-                                // Payment Method Buttons (TETAP SAMA)
                                 Row(
                                   children: [
-                                    Expanded(
-                                      child: _buildPaymentMethodButton('Cash'),
-                                    ),
+                                    Expanded(child: _buildPaymentMethodButton('Cash')),
                                     const SizedBox(width: 12),
-                                    Expanded(
-                                      child: _buildPaymentMethodButton('Qris'),
-                                    ),
+                                    Expanded(child: _buildPaymentMethodButton('Qris')),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
-                                    Expanded(
-                                      child: _buildPaymentMethodButton('Debit/Credit'),
-                                    ),
+                                    Expanded(child: _buildPaymentMethodButton('Debit/Credit')),
                                     const SizedBox(width: 12),
-                                    Expanded(
-                                      child: _buildPaymentMethodButton('Cash + Debit/Credit'),
-                                    ),
+                                    Expanded(child: _buildPaymentMethodButton('Cash + Debit/Credit')),
                                   ],
                                 ),
 
                                 const Spacer(flex: 2),
 
-                                // Payment Input
                                 Text(
                                   selectedPaymentMethod,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black87,
-                                  ),
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
                                 ),
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _paymentController,
                                   readOnly: true,
                                   textAlign: TextAlign.right,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w400,
-                                    color: Colors.grey.shade800, // Sedikit lebih gelap agar terbaca
-                                  ),
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: Colors.grey.shade800),
                                   decoration: InputDecoration(
                                     hintText: 'Total to Pay',
-                                    hintStyle: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 15,
-                                    ),
+                                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
                                     filled: true,
                                     fillColor: Colors.white,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 14,
-                                    ),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                   ),
                                 ),
                                 const Spacer(),
 
-                                // Print Receipt Button (Tombol Proses)
                                 SizedBox(
                                   width: double.infinity,
                                   height: 52,
@@ -590,20 +502,14 @@ class _PaymentPageState extends State<PaymentPage> {
                                         : () => _processPayment(context, total),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF4A3AA0),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       elevation: 0,
                                     ),
                                     child: state.status == DashboardStatus.loading
                                         ? const CircularProgressIndicator(color: Colors.white)
                                         : const Text(
                                             'Print Receipt',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
-                                            ),
+                                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
                                           ),
                                   ),
                                 ),
@@ -612,7 +518,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           ),
                         ),
 
-                        // Right Section - Numpad (1/3) - (TETAP SAMA)
+                        // RIGHT: NUMPAD
                         Expanded(
                           child: LayoutBuilder(
                             builder: (context, constraints) {
@@ -628,18 +534,10 @@ class _PaymentPageState extends State<PaymentPage> {
                                 childAspectRatio: aspectRatio,
                                 physics: const NeverScrollableScrollPhysics(),
                                 children: [
-                                  _buildNumpadButton('1'),
-                                  _buildNumpadButton('2'),
-                                  _buildNumpadButton('3'),
-                                  _buildNumpadButton('4'),
-                                  _buildNumpadButton('5'),
-                                  _buildNumpadButton('6'),
-                                  _buildNumpadButton('7'),
-                                  _buildNumpadButton('8'),
-                                  _buildNumpadButton('9'),
-                                  _buildNumpadButton(''), // Kosong
-                                  _buildNumpadButton('0'),
-                                  _buildNumpadButton('⌫'),
+                                  _buildNumpadButton('1'), _buildNumpadButton('2'), _buildNumpadButton('3'),
+                                  _buildNumpadButton('4'), _buildNumpadButton('5'), _buildNumpadButton('6'),
+                                  _buildNumpadButton('7'), _buildNumpadButton('8'), _buildNumpadButton('9'),
+                                  _buildNumpadButton(''), _buildNumpadButton('0'), _buildNumpadButton('⌫'),
                                 ],
                               );
                             },
@@ -657,15 +555,9 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  // --- WIDGET HELPER (TIDAK BERUBAH SECARA VISUAL) ---
+  // --- WIDGET HELPER ---
 
-  Widget _buildSummaryRow(
-    String label,
-    double amount, {
-    bool isNegative = false,
-    bool isPositive = false,
-    bool isBold = false,
-  }) {
+  Widget _buildSummaryRow(String label, double amount, {bool isNegative = false, bool isPositive = false, bool isBold = false, Color? color}) {
     String prefix = '';
     if (isNegative && amount > 0) prefix = '-';
     if (isPositive && amount > 0) prefix = '+';
@@ -675,19 +567,11 @@ class _PaymentPageState extends State<PaymentPage> {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: isBold ? 18 : 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: Colors.black87,
-          ),
+          style: TextStyle(fontSize: isBold ? 18 : 16, fontWeight: isBold ? FontWeight.bold : FontWeight.w500, color: Colors.black87),
         ),
         Text(
           '$prefix${currencyFormat.format(amount)}',
-          style: TextStyle(
-            fontSize: isBold ? 18 : 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: Colors.black87,
-          ),
+          style: TextStyle(fontSize: isBold ? 18 : 16, fontWeight: isBold ? FontWeight.bold : FontWeight.w500, color: color ?? Colors.black87),
         ),
       ],
     );
@@ -699,10 +583,8 @@ class _PaymentPageState extends State<PaymentPage> {
       onTap: () {
         setState(() {
           selectedPaymentMethod = method;
-          // Reset input jika pindah metode agar tidak bingung
           _paymentController.clear();
         });
-
         if (method == 'Qris') {
           _showQrisDialog();
         }
@@ -713,19 +595,12 @@ class _PaymentPageState extends State<PaymentPage> {
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFE57373) : Colors.white,
           borderRadius: BorderRadius.circular(25),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFE57373) : Colors.grey.shade300,
-            width: 1,
-          ),
+          border: Border.all(color: isSelected ? const Color(0xFFE57373) : Colors.grey.shade300, width: 1),
         ),
         child: Center(
           child: Text(
             method,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: isSelected ? Colors.white : Colors.black87,
-            ),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : Colors.black87),
             textAlign: TextAlign.center,
           ),
         ),
@@ -735,7 +610,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Widget _buildNumpadButton(String value) {
     if (value.isEmpty) return Container(color: Colors.grey.shade50);
-
     return InkWell(
       onTap: () => _onNumberPressed(value),
       child: Container(
@@ -744,11 +618,7 @@ class _PaymentPageState extends State<PaymentPage> {
         child: Center(
           child: Text(
             value,
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
+            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w500, color: Colors.black87),
           ),
         ),
       ),
