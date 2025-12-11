@@ -5,7 +5,8 @@ import 'package:horeka_post_plus/core/constants/app_constants.dart';
 import 'package:horeka_post_plus/core/utils/device_info_helper.dart';
 
 class AuthRepository {
-  // --- [LANGKAH 1] Validasi PIN (Tanpa /v1) ---
+  // --- [LANGKAH 1] Validasi PIN (DENGAN PENYIMPANAN ID) ---
+  // --- [LANGKAH 1] Validasi PIN (DENGAN PENANGANAN ERROR SESI AKTIF) ---
   Future<Map<String, dynamic>> validatePin(String pin) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -15,10 +16,8 @@ class AuthRepository {
         throw Exception('Token not found. Please login again.');
       }
 
-      // URL Endpoint tanpa /v1
       final url = '${AppConstants.apiBaseUrl}/shift/validate-pin';
-      print("Requesting: $url"); // Debug
-
+      
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -30,26 +29,44 @@ class AuthRepository {
         }),
       );
 
-      // Cek jika server mengembalikan HTML (Error 404/500/Proxy)
+      // Cek error HTML
       if (response.body.trim().startsWith('<')) {
-        throw Exception('Server Error: Mendapat respon HTML (${response.statusCode}). Cek URL API atau jaringan.');
+        throw Exception('Server Error: Mendapat respon HTML (${response.statusCode}).');
       }
 
-      final data = jsonDecode(response.body);
+      final body = jsonDecode(response.body);
 
+      // --- [HANDLE ERROR SPESIFIK] ---
       if (response.statusCode == 200) {
-        // Mengembalikan data { cashier_id, full_name }
-        return data['data'];
-      } else {
-        throw Exception(data['message'] ?? 'PIN Salah');
+        // SUKSES
+        final data = body['data'];
+        
+        // Simpan ID
+        if (data['cashier_id'] != null) {
+           await prefs.setString('user_id', data['cashier_id'].toString());
+        } else if (data['user_id'] != null) {
+           await prefs.setString('user_id', data['user_id'].toString());
+        }
+
+        return data;
+      } 
+      // [UPDATE] Tangkap Error 403 (Sesi Aktif / Akses Ditolak)
+      else if (response.statusCode == 403) {
+        // Pesan dari backend: "Akses Ditolak: [Nama] sedang aktif di sesi lain..."
+        // Kita lempar sebagai Exception agar UI bisa menampilkannya
+        throw Exception(body['message'] ?? 'PIN ini sedang aktif di sesi lain.');
       }
+      // Error Lainnya (401 PIN Salah, dll)
+      else {
+        throw Exception(body['message'] ?? 'PIN Salah');
+      }
+
     } catch (e) {
+      // Bersihkan prefix "Exception: " agar pesan di UI bersih
       throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
-
   // --- [LANGKAH 2] Buka Shift (Tanpa /v1) ---
-  // Menerima cashierId (hasil dari langkah 1), bukan PIN lagi
   Future<void> openShift(String cashierId, int openingCash) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -59,7 +76,6 @@ class AuthRepository {
         throw Exception('Token not found.');
       }
 
-      // URL Endpoint tanpa /v1
       final url = '${AppConstants.apiBaseUrl}/shift/open';
       
       final response = await http.post(
@@ -74,7 +90,6 @@ class AuthRepository {
         }),
       );
 
-      // Cek error HTML
       if (response.body.trim().startsWith('<')) {
         throw Exception('Server Error: Mendapat respon HTML (${response.statusCode}).');
       }
@@ -92,7 +107,6 @@ class AuthRepository {
   }
 
   // --- [LANGKAH 3] Tutup Shift (Tanpa /v1) ---
-  // Dipanggil saat logout
   Future<void> closeShift() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -100,7 +114,6 @@ class AuthRepository {
 
       if (token == null) throw Exception('Token not found.');
 
-      // URL Endpoint tanpa /v1
       final url = '${AppConstants.apiBaseUrl}/shift/close';
       
       final response = await http.post(
@@ -123,7 +136,6 @@ class AuthRepository {
         throw Exception(data['message'] ?? 'Gagal menutup shift');
       }
     } catch (e) {
-      // Kita lempar error agar bisa ditangani di Bloc (opsional)
       throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
@@ -144,12 +156,15 @@ class AuthRepository {
     try {
       final deviceInfo = await DeviceInfoHelper.getDeviceInfo();
       
+      // Ambil device ID untuk disimpan nanti
+      final deviceId = deviceInfo['id'];
+      
       final response = await http.post(
         Uri.parse('${AppConstants.apiBaseUrl}/license/activate'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'activation_code': activationCode,
-          'device_id': deviceInfo['id'],
+          'device_id': deviceId,
           'device_name': deviceInfo['name'],
         }),
       );
@@ -163,6 +178,12 @@ class AuthRepository {
       if (response.statusCode == 200) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(AppConstants.activationCodeKey, activationCode);
+        
+        // [PERBAIKAN] Simpan ID Tablet agar bisa dipakai saat Transaksi
+        if (deviceId != null) {
+          await prefs.setString('local_tablet_id', deviceId);
+        }
+        
       } else {
         throw Exception(data['message'] ?? 'Kode aktivasi tidak valid');
       }
@@ -171,7 +192,7 @@ class AuthRepository {
     }
   }
 
-  // --- Ambil Info Device (Login Screen) ---
+  // --- Ambil Info Device ---
   Future<Map<String, dynamic>> getDeviceInfo() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -211,6 +232,7 @@ class AuthRepository {
   }
 
   // --- Login ---
+  // [UPDATE] Fungsi Login dengan Debugging & Paksa Simpan ID
   Future<String> login(String username, String password, String shiftId) async {
     try {
       final response = await http.post(
@@ -236,6 +258,23 @@ class AuthRepository {
         await prefs.setString(AppConstants.tokenKey, token);
         await prefs.setString(AppConstants.usernameKey, username);
         
+        // --- [LOGIKA BARU LEBIH KUAT] ---
+        // 1. Coba ambil dari DeviceInfoHelper (ID Fisik Device)
+        try {
+          final deviceInfo = await DeviceInfoHelper.getDeviceInfo();
+          final deviceId = deviceInfo['id'] ?? 'UNKNOWN-DEVICE-ID';
+          
+          // 2. Paksa simpan ke SharedPreferences
+          await prefs.setString('local_tablet_id', deviceId);
+          
+          // 3. PRINT DEBUG (Cek di Console Anda nanti)
+          print("✅ [AUTH DEBUG] Berhasil simpan local_tablet_id: $deviceId");
+        } catch (e) {
+          print("❌ [AUTH DEBUG] Gagal ambil device info: $e");
+          // Fallback ID jika gagal
+          await prefs.setString('local_tablet_id', 'FALLBACK-ID-001');
+        }
+        
         return username;
       } else {
         throw Exception(data['message'] ?? 'Username atau password salah');
@@ -244,15 +283,24 @@ class AuthRepository {
       throw Exception('Gagal login: $e');
     }
   }
-
   // --- Logout ---
   Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(AppConstants.usernameKey);
       await prefs.remove(AppConstants.tokenKey);
+      // Jangan hapus local_tablet_id agar tidak perlu aktivasi ulang
     } catch (e) {
       throw Exception('Gagal logout: $e');
     }
   }
+
+// --- [BARU] Cek apakah user sudah login ---
+  Future<bool> hasToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(AppConstants.tokenKey);
+    // Kembalikan true jika token ada dan tidak kosong
+    return token != null && token.isNotEmpty;
+  }
+
 }

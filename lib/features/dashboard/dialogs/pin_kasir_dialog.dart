@@ -27,6 +27,7 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
   );
 
   bool _isError = false;
+  String? _errorMessage; // [BARU] Menyimpan pesan error dari backend
 
   @override
   void initState() {
@@ -47,7 +48,6 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
     super.dispose();
   }
 
-  // Fungsi untuk membersihkan field dan reset fokus ke awal
   void _clearFields() {
     for (var controller in _controllers) {
       controller.clear();
@@ -59,6 +59,7 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
     if (_isError) {
       setState(() {
         _isError = false;
+        _errorMessage = null; // Reset pesan error saat user mengetik lagi
       });
     }
 
@@ -73,6 +74,7 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
     if (enteredPin.length < 4) {
       setState(() {
         _isError = true;
+        _errorMessage = 'PIN harus 4 digit';
       });
       return;
     }
@@ -92,20 +94,21 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
       borderSide: BorderSide.none,
     );
 
-    // Kita bungkus Dialog dengan BlocListener agar bisa bereaksi terhadap status AuthBloc
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
-        // Jika status ERROR (PIN Salah), reset field
         if (state.status == AuthStatus.error) {
           setState(() {
             _isError = true;
+            // [UPDATE] Ambil pesan error dari state (misal: "Akses Ditolak: Budi sedang aktif...")
+            _errorMessage = state.errorMessage ?? 'PIN Salah. Silakan coba lagi.';
           });
 
-          // Beri jeda 500ms agar user sempat melihat indikator error/merah
-          // sebelum field dikosongkan
-          Future.delayed(const Duration(milliseconds: 500), () {
+          // Jeda agar user bisa baca pesan error sebelum field di-reset
+          Future.delayed(const Duration(milliseconds: 1500), () {
             if (mounted) {
               _clearFields();
+              // Opsional: Anda bisa membiarkan _isError true sampai user mengetik lagi
+              // agar pesan error tetap terbaca.
             }
           });
         }
@@ -187,21 +190,24 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
                   }),
                 ),
 
-                // Error text
+                // [UPDATE] Tampilkan Pesan Error Dinamis
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  height: _isError ? 32 : 0,
+                  // Beri ruang lebih jika pesannya panjang (multi-line)
+                  height: _isError ? 60 : 0, 
                   child: _isError
-                      ? const Padding(
-                          padding: EdgeInsets.only(top: 12),
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 12),
                           child: Text(
-                            'PIN Salah. Silakan coba lagi.',
-                            style: TextStyle(
+                            _errorMessage ?? 'PIN Salah.', // Tampilkan pesan backend
+                            style: const TextStyle(
                               color: Colors.red,
                               fontSize: 13,
                               fontWeight: FontWeight.w400,
                             ),
                             textAlign: TextAlign.center,
+                            maxLines: 2, // Support pesan panjang 2 baris
+                            overflow: TextOverflow.ellipsis,
                           ),
                         )
                       : const SizedBox.shrink(),
@@ -209,7 +215,7 @@ class _PinKasirDialogState extends State<PinKasirDialog> {
 
                 const SizedBox(height: 16),
 
-                // Enter button (dengan Loading Indicator)
+                // Enter button
                 BlocBuilder<AuthBloc, AuthState>(
                   builder: (context, state) {
                     final isLoading = state.status == AuthStatus.loading;

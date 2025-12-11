@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:horeka_post_plus/core/constants/app_constants.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_bloc.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
@@ -33,21 +34,46 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _index = 0;
+  // [PERBAIKAN] Flag untuk mencegah dialog muncul tumpuk
+  bool _isDialogShowing = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authState = context.read<AuthBloc>().state;
-      if (!authState.isShiftOpen) {
-        _showPinDialog();
-      } else {
-        context.read<DashboardBloc>().add(FetchMenuRequested());
-      }
+      _checkStartupState();
     });
   }
 
+  // [PERBAIKAN LOGIKA STARTUP]
+  void _checkStartupState() {
+    final authState = context.read<AuthBloc>().state;
+
+    // 1. Jika shift sudah buka, load menu dan jangan tampilkan dialog apapun
+    if (authState.isShiftOpen) {
+      context.read<DashboardBloc>().add(FetchMenuRequested());
+      return;
+    }
+
+    // 2. Jika sedang ada dialog tampil, jangan tumpuk
+    if (_isDialogShowing) return;
+
+    // 3. Logika Pemilihan Dialog (Pilih satu saja)
+    if (authState.isPinValidated) {
+      // Kasus: PIN sudah benar, tapi belum input saldo (misal kena refresh)
+      // Tampilkan Dialog Saldo, BUKAN PIN
+      _showStartingBalanceDialog(authState.tempCashierId ?? '');
+    } else {
+      // Kasus: Belum login shift sama sekali
+      // Tampilkan Dialog PIN
+      _showPinDialog();
+    }
+  }
+
   void _showPinDialog() {
+    if (_isDialogShowing) return; // Safety check
+    setState(() => _isDialogShowing = true);
+
     final authBloc = context.read<AuthBloc>();
 
     showDialog(
@@ -59,13 +85,19 @@ class _HomePageState extends State<HomePage> {
         child: PinKasirDialog(
           onPinSubmitted: (pin) {
             authBloc.add(ValidatePinRequested(pin: pin));
+            // Dialog akan ditutup oleh BlocListener saat status success
           },
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) setState(() => _isDialogShowing = false); // Reset Flag saat tutup
+    });
   }
 
   void _showStartingBalanceDialog(String cashierId) {
+    if (_isDialogShowing) return; // Safety check
+    setState(() => _isDialogShowing = true);
+
     final authBloc = context.read<AuthBloc>();
 
     showDialog(
@@ -80,10 +112,13 @@ class _HomePageState extends State<HomePage> {
             authBloc.add(
               OpenShiftRequested(cashierId: cashierId, openingCash: amount),
             );
+            // Dialog akan ditutup oleh BlocListener saat status success
           },
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) setState(() => _isDialogShowing = false); // Reset Flag saat tutup
+    });
   }
 
   @override
@@ -95,9 +130,13 @@ class _HomePageState extends State<HomePage> {
       listeners: [
         BlocListener<AuthBloc, AuthState>(
           listener: (context, state) {
+            // 1. Handle Error
             if (state.status == AuthStatus.error) {
               final isPinError =
                   state.errorMessage?.toLowerCase().contains('pin') == true;
+
+              // Jika error bukan soal PIN (misal koneksi), tampilkan snackbar
+              // Error PIN sudah ditangani di dalam widget PinKasirDialog
               if (!isPinError) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -109,14 +148,32 @@ class _HomePageState extends State<HomePage> {
               }
             }
 
+            // 2. Handle PIN Sukses -> Pindah ke Saldo Awal
+            // Kita tutup dialog PIN manual di sini, beri jeda, lalu buka dialog saldo
             if (state.status == AuthStatus.success &&
                 state.isPinValidated &&
                 !state.isShiftOpen) {
-              Navigator.of(context).pop();
-              _showStartingBalanceDialog(state.tempCashierId ?? '');
+              
+              // Tutup dialog PIN jika sedang terbuka
+              if (_isDialogShowing) {
+                Navigator.of(context).pop(); 
+              }
+
+              // [PENTING] Beri jeda sedikit agar pop animation selesai
+              // sebelum membuka dialog baru. Ini mencegah "dialog tertumpuk/di belakang"
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted) {
+                  _showStartingBalanceDialog(state.tempCashierId ?? '');
+                }
+              });
             }
 
+            // 3. Handle Shift Sukses Dibuka -> Tutup Dialog Saldo
             if (state.status == AuthStatus.success && state.isShiftOpen) {
+              if (_isDialogShowing) {
+                Navigator.of(context).pop(); // Tutup Starting Balance Dialog
+              }
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Shift berhasil dibuka!'),
@@ -126,6 +183,7 @@ class _HomePageState extends State<HomePage> {
               context.read<DashboardBloc>().add(FetchMenuRequested());
             }
 
+            // 4. Handle Logout / Sesi Habis
             if (state.status == AuthStatus.success && !state.isAuthenticated) {
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const AuthPage()),
@@ -134,24 +192,36 @@ class _HomePageState extends State<HomePage> {
             }
           },
         ),
+        // Listener Dashboard (Update: Menggunakan Toast & Tambah Queue)
         BlocListener<DashboardBloc, DashboardState>(
           listener: (context, state) {
-            if (state.status == DashboardStatus.transactionSuccess) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Transaksi Berhasil!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
+            // 2. Pengeluaran Berhasil
             if (state.status == DashboardStatus.expenseSuccess) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Pengeluaran Berhasil Dicatat!'),
-                  backgroundColor: Colors.green,
-                ),
+              Fluttertoast.showToast(
+                msg: "Pengeluaran Berhasil Dicatat!",
+                toastLength: Toast.LENGTH_SHORT,
+                gravity: ToastGravity.BOTTOM,
+                timeInSecForIosWeb: 1,
+                backgroundColor: Colors.green,
+                textColor: Colors.white,
+                fontSize: 16.0,
               );
             }
+
+            // 3. Simpan Antrian Berhasil
+            if (state.status == DashboardStatus.queueSuccess) {
+              Fluttertoast.showToast(
+                msg: "Antrian Berhasil Disimpan!",
+                toastLength: Toast.LENGTH_SHORT,
+                gravity: ToastGravity.BOTTOM,
+                timeInSecForIosWeb: 1,
+                backgroundColor: Colors.blue, // Warna biru untuk antrian
+                textColor: Colors.white,
+                fontSize: 16.0,
+              );
+            }
+
+            // 4. Error (Tetap gunakan SnackBar agar terbaca jelas)
             if (state.status == DashboardStatus.error) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -322,16 +392,14 @@ class _ProductAreaCombined extends StatelessWidget {
                       child: InkWell(
                         onTap: () {
                           context.read<DashboardBloc>().add(
-                            SelectCategory(category),
-                          );
+                                SelectCategory(category),
+                              );
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? kWhiteColor
-                                : Colors.transparent,
+                            color: isSelected ? kWhiteColor : Colors.transparent,
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(12),
                             ),
@@ -406,8 +474,8 @@ class _ProductAreaCombined extends StatelessWidget {
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () => context.read<DashboardBloc>().add(
-                            FetchMenuRequested(),
-                          ),
+                                FetchMenuRequested(),
+                              ),
                           child: const Text('Coba Lagi'),
                         ),
                       ],
@@ -439,11 +507,11 @@ class _ProductAreaCombined extends StatelessWidget {
                     itemCount: state.filteredProducts.length,
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.4,
-                        ),
+                      crossAxisCount: 4,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.4,
+                    ),
                     itemBuilder: (context, index) {
                       final product = state.filteredProducts[index];
                       return _MenuCard(product: product);
@@ -620,19 +688,22 @@ class _BottomActionsBar extends StatelessWidget {
                   barrierDismissible: false,
                   barrierColor: kBrandColor.withOpacity(0.5),
                   builder: (context) => ExpenseDialog(
-                    onSave: (desc, amount) {
+                    // Update parameter callback
+                    onSave: (desc, amount, imagePath) {
                       final cleanAmount = amount.replaceAll(
                         RegExp(r'[^0-9]'),
                         '',
                       );
                       final intAmount = int.tryParse(cleanAmount) ?? 0;
+
                       if (intAmount > 0 && desc.isNotEmpty) {
                         context.read<DashboardBloc>().add(
-                          CreateExpenseRequested(
-                            description: desc,
-                            amount: intAmount,
-                          ),
-                        );
+                              CreateExpenseRequested(
+                                description: desc,
+                                amount: intAmount,
+                                imagePath: imagePath, // Teruskan path gambar
+                              ),
+                            );
                       }
                     },
                   ),
@@ -754,6 +825,7 @@ class _CartHeader extends StatelessWidget {
   }
 }
 
+// --- BAGIAN INI YANG DIUBAH (SMART SAVE QUEUE) ---
 class _CartContent extends StatelessWidget {
   const _CartContent();
 
@@ -812,10 +884,14 @@ class _CartContent extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Row(
                 children: [
+                  // TOMBOL SAVE QUEUE (SMART LOGIC)
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey.shade400,
+                        // Warna Oranye jika Edit Mode, Abu jika New Mode
+                        backgroundColor: state.editingQueue != null
+                            ? Colors.orange.shade700
+                            : Colors.grey.shade400,
                         foregroundColor: kWhiteColor,
                         minimumSize: const Size.fromHeight(55),
                         shape: RoundedRectangleBorder(
@@ -823,38 +899,56 @@ class _CartContent extends StatelessWidget {
                         ),
                       ),
                       onPressed: () async {
-                        final result = await showDialog(
-                          context: context,
-                          barrierDismissible: true,
-                          barrierColor: Colors.black.withOpacity(0.5),
-                          builder: (BuildContext context) {
-                            return const SaveQueueDialog();
-                          },
-                        );
+                        // 1. Cek Cart Kosong
+                        if (state.cartItems.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Keranjang masih kosong!'),
+                            ),
+                          );
+                          return;
+                        }
 
-                        // Handle result jika ada
-                        if (result != null) {
-                          // TODO: Save queue data ke database
-                          print('Table Number: ${result['tableNumber']}');
-                          print('Waiter Name: ${result['waiterName']}');
-                          print('Order Notes: ${result['orderNotes']}');
+                        // 2. CEK MODE EDIT ATAU BARU?
+                        if (state.editingQueue != null) {
+                          // --- MODE EDIT: UPDATE LANGSUNG (BYPASS DIALOG) ---
+                          context.read<DashboardBloc>().add(
+                                SaveQueueRequested(
+                                  // Pakai data lama dari antrian yang sedang diedit
+                                  tableNumber: state.editingQueue!.customerName,
+                                  waiterName: "",
+                                  orderNotes: state.editingQueue!.note,
+                                ),
+                              );
+                        } else {
+                          // --- MODE BARU: TAMPILKAN DIALOG ---
+                          final result = await showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            barrierColor: kBrandColor.withOpacity(0.5),
+                            builder: (context) => const SaveQueueDialog(),
+                          );
 
-                          // Optional: Show success message
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Queue berhasil disimpan!'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
+                          if (result != null && result is Map) {
+                            context.read<DashboardBloc>().add(
+                                  SaveQueueRequested(
+                                    tableNumber: result['tableNumber'] ?? '',
+                                    waiterName: result['waiterName'] ?? '',
+                                    orderNotes: result['orderNotes'] ?? '',
+                                  ),
+                                );
                           }
                         }
                       },
-                      child: const Text('Save Queue'),
+                      // Ubah teks tombol sesuai mode
+                      child: Text(state.editingQueue != null
+                          ? 'Update Queue'
+                          : 'Save Queue'),
                     ),
                   ),
-
                   const SizedBox(width: 16),
+
+                  // TOMBOL PAY NOW
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -866,7 +960,6 @@ class _CartContent extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        // [UPDATE] Navigasi ke Halaman Pembayaran
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -910,8 +1003,8 @@ class _CartItemRow extends StatelessWidget {
                 children: [
                   InkWell(
                     onTap: () => context.read<DashboardBloc>().add(
-                      AddToCart(item.product),
-                    ),
+                          AddToCart(item.product),
+                        ),
                     child: const Icon(
                       Icons.add_circle_outline,
                       color: kBrandColor,
@@ -921,8 +1014,8 @@ class _CartItemRow extends StatelessWidget {
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: () => context.read<DashboardBloc>().add(
-                      RemoveFromCart(item.product),
-                    ),
+                          RemoveFromCart(item.product),
+                        ),
                     child: const Icon(
                       Icons.remove_circle_outline,
                       color: Colors.red,
@@ -1175,7 +1268,8 @@ class _ShiftEndedDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Positioned.fill(child: Container(color: kBrandColor.withOpacity(0.35))),
+        Positioned.fill(
+            child: Container(color: kBrandColor.withOpacity(0.35))),
         Center(
           child: Container(
             width: 420,

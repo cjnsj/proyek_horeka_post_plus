@@ -1,24 +1,35 @@
 import 'package:equatable/equatable.dart';
 
-enum AuthStatus { initial, loading, success, error, authenticated }
+// [PERBAIKAN] Menambahkan 'unauthenticated' ke dalam enum
+enum AuthStatus {
+  initial,
+  loading,
+  success,
+  error,
+  authenticated,
+  unauthenticated, // <--- Opsi ini WAJIB ada untuk fitur Auto Login
+}
 
 class AuthState extends Equatable {
   final AuthStatus status;
   final String? errorMessage;
   final bool isActivated;
   final bool isAuthenticated;
-  
+
   final bool isShiftOpen; // Status Shift (Langkah 2 sukses)
   final bool isPinValidated; // Status Validasi PIN (Langkah 1 sukses)
 
   final String? username;
   final String branchName;
-  final List<Map<String, dynamic>> schedules;
+
+  // Menggunakan List<dynamic> agar lebih aman saat menerima data JSON dari BLoC
+  final List<dynamic> schedules;
+
   final int backgroundIndex;
 
   // Data sementara setelah validasi PIN berhasil
-  final String? tempCashierId; 
-  final String? tempCashierName; 
+  final String? tempCashierId;
+  final String? tempCashierName;
 
   const AuthState({
     this.status = AuthStatus.initial,
@@ -26,7 +37,7 @@ class AuthState extends Equatable {
     this.isActivated = false,
     this.isAuthenticated = false,
     this.isShiftOpen = false,
-    this.isPinValidated = false, // Default false
+    this.isPinValidated = false,
     this.username,
     this.branchName = '',
     this.schedules = const [],
@@ -44,7 +55,7 @@ class AuthState extends Equatable {
     bool? isPinValidated,
     String? username,
     String? branchName,
-    List<Map<String, dynamic>>? schedules,
+    List<dynamic>? schedules,
     int? backgroundIndex,
     String? tempCashierId,
     String? tempCashierName,
@@ -67,17 +78,17 @@ class AuthState extends Equatable {
 
   @override
   List<Object?> get props => [
-        status,
-        errorMessage,
-        isActivated,
-        isAuthenticated,
-        isShiftOpen,
-        isPinValidated,
-        username,
-        branchName,
-        schedules,
-        backgroundIndex,
-        tempCashierId,
-        tempCashierName,
-      ];
+    status,
+    errorMessage,
+    isActivated,
+    isAuthenticated,
+    isShiftOpen,
+    isPinValidated,
+    username,
+    branchName,
+    schedules,
+    backgroundIndex,
+    tempCashierId,
+    tempCashierName,
+  ];
 }

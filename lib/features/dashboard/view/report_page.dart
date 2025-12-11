@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 
 class ReportPage extends StatelessWidget {
@@ -10,7 +15,7 @@ class ReportPage extends StatelessWidget {
   }
 }
 
-// ================== LAYOUT UTAMA (LOGO KIRI, KONTEN KANAN) ==================
+// ================== LAYOUT UTAMA ==================
 
 class _ReportLayout extends StatelessWidget {
   const _ReportLayout();
@@ -72,7 +77,7 @@ class _LogoCard extends StatelessWidget {
   }
 }
 
-// ================== AREA KONTEN KANAN ==================
+// ================== CONTENT AREA ==================
 
 class _ReportContentArea extends StatefulWidget {
   const _ReportContentArea();
@@ -85,25 +90,26 @@ class _ReportContentAreaState extends State<_ReportContentArea> {
   int _tabIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    context.read<DashboardBloc>().add(FetchAllReportsRequested());
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // Card kiri: kalau tab 0 ada ruang untuk detail, kalau tab lain full
         Positioned(
           left: 12,
           top: 24,
           bottom: 24,
-          // Jika tabIndex 0 (Sales report) sisakan ruang 380 + margin 24
-          // Kalau tab lain, pakai full width (right: 24)
           right: _tabIndex == 0 ? 420 : 24,
           child: _SalesReportCard(
             tabIndex: _tabIndex,
             onTabChanged: (i) => setState(() => _tabIndex = i),
           ),
         ),
-
-        // Card kanan (Sales details) hanya muncul di tab Sales report
         if (_tabIndex == 0)
           const Positioned(
             right: 24,
@@ -116,17 +122,14 @@ class _ReportContentAreaState extends State<_ReportContentArea> {
     );
   }
 }
-// ================== CARD LAPORAN KIRI ==================
+
+// ================== CARD LAPORAN UTAMA ==================
 
 class _SalesReportCard extends StatelessWidget {
   final int tabIndex;
   final ValueChanged<int> onTabChanged;
 
-  const _SalesReportCard({
-    super.key,
-    required this.tabIndex,
-    required this.onTabChanged,
-  });
+  const _SalesReportCard({required this.tabIndex, required this.onTabChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +142,7 @@ class _SalesReportCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tabs atas
+          // Tabs
           Container(
             height: 60,
             decoration: const BoxDecoration(
@@ -179,577 +182,17 @@ class _SalesReportCard extends StatelessWidget {
             ),
           ),
 
-          // Konten per tab
+          // Content
           Expanded(
             child: Builder(
               builder: (context) {
-                if (tabIndex == 1) {
-                  return const _ItemReportContent();
-                } else if (tabIndex == 2) {
-                  return const _ExpenditureReportContent();
-                } else {
-                  return const _SalesReportContent();
-                }
+                if (tabIndex == 1) return const _ItemReportContent();
+                if (tabIndex == 2) return const _ExpenditureReportContent();
+                return const _SalesReportContent();
               },
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ================== SALES REPORT CONTENT (TAB 0) ==================
-
-class _SalesReportContent extends StatelessWidget {
-  const _SalesReportContent();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Filter bar
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _DateFilterColumn(label: 'Start date', value: '04-11-2025'),
-              SizedBox(width: 32),
-              _DateFilterColumn(label: 'End date', value: '05-11-2025'),
-              SizedBox(width: 32),
-              _VoidFilterColumn(),
-            ],
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-        // List transaksi
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-            child: ListView.separated(
-              itemCount: 5,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 1, thickness: 1, color: kBorderColor),
-              itemBuilder: (context, index) => const _SalesRowItem(),
-            ),
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-        // Footer total + tombol
-        Container(
-          height: 70,
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
-          ),
-          child: Row(
-            children: const [
-              SizedBox(width: 24),
-              Text(
-                'Total sales amount',
-                style: TextStyle(color: kTextDark, fontWeight: FontWeight.w800),
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Rp.18.000,00',
-                style: TextStyle(color: kTextDark, fontWeight: FontWeight.w600),
-              ),
-              Spacer(),
-              _PrintSalesReportButton(),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ================== ITEM REPORT CONTENT (TAB 1) ==================
-
-class _ItemReportContent extends StatelessWidget {
-  const _ItemReportContent();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Bar atas: Start / End / Filter (responsif)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 700;
-
-              if (isNarrow) {
-                // Layout vertikal untuk layar sempit
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ItemDateColumn(
-                            label: 'Start Date',
-                            value: '04-11-2025',
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: _ItemDateColumn(
-                            label: 'End Date',
-                            value: '05-11-2025',
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
-                    _ItemVoidFilterRow(),
-                  ],
-                );
-              }
-
-              // Layout horizontal untuk layar lebar (seperti desain)
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  _ItemDateColumn(label: 'Start Date', value: '04-11-2025'),
-                  SizedBox(width: 40),
-                  _ItemDateColumn(label: 'End Date', value: '05-11-2025'),
-                  Spacer(),
-                  _ItemVoidFilterRow(),
-                ],
-              );
-            },
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-        // Header tabel
-        Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          alignment: Alignment.centerLeft,
-          child: const Row(
-            children: [
-              Expanded(
-                flex: 6,
-                child: Text(
-                  'Item Name',
-                  style: TextStyle(
-                    color: kTextDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 4,
-                child: Text(
-                  'Quantity Sold',
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    color: kTextDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-        // Isi tabel (kosong)
-        const Expanded(child: ColoredBox(color: kWhiteColor)),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-        // Bottom bar (ikon print kiri + tombol kanan)
-        Container(
-          height: 64,
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () {
-                  // TODO: print langsung
-                },
-                icon: const Icon(
-                  Icons.print,
-                  color: Color(0xFF26A645),
-                  size: 24,
-                ),
-              ),
-              const Spacer(),
-              SizedBox(
-                height: 44,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kBrandColor,
-                    foregroundColor: kWhiteColor,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 26,
-                      vertical: 0,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  onPressed: () {
-                    // TODO: print item-wise recap
-                  },
-                  child: const Text(
-                    'Print Item-wise Sales Recap',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// helper untuk Item report
-class _ItemDateColumn extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _ItemDateColumn({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: kTextDark,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        _DisabledDateField(text: value),
-      ],
-    );
-  }
-}
-
-class _ItemVoidFilterRow extends StatelessWidget {
-  const _ItemVoidFilterRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text(
-          'Filter Void',
-          style: TextStyle(
-            color: kTextDark,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 18,
-          height: 18,
-          child: Checkbox(
-            value: false,
-            onChanged: (_) {},
-            activeColor: kBrandColor,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-        const SizedBox(width: 8),
-        const Text(
-          'Only void',
-          style: TextStyle(color: kTextDark, fontSize: 13),
-        ),
-      ],
-    );
-  }
-}
-
-class _DisabledDateField extends StatelessWidget {
-  final String text;
-
-  const _DisabledDateField({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 38,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F2F7),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: kBorderColor, width: 1),
-      ),
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Text(text, style: const TextStyle(color: kTextGrey, fontSize: 13)),
-    );
-  }
-}
-
-// ================== EXPENDITURE PLACEHOLDER (TAB 2) ==================
-
-class _ExpenditureReportContent extends StatelessWidget {
-  const _ExpenditureReportContent();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Bar atas: Start / End
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _ExpDateColumn(label: 'Start Date', value: '04-11-2025'),
-              SizedBox(width: 40),
-              _ExpDateColumn(label: 'End Date', value: '05-11-2025'),
-            ],
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-
-        // Header tabel
-        Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          alignment: Alignment.centerLeft,
-          child: const Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: Text(
-                  'Date',
-                  style: TextStyle(
-                    color: kTextDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 4,
-                child: Text(
-                  'Notes',
-                  style: TextStyle(
-                    color: kTextDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  'Cashier',
-                  style: TextStyle(
-                    color: kTextDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  'Amount',
-                  style: TextStyle(
-                    color: kTextDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-
-        // Isi tabel (kosong dulu)
-        const Expanded(child: ColoredBox(color: kWhiteColor)),
-
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-
-        // Footer total + ikon print + tombol
-        Container(
-          height: 64,
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-          child: Row(
-            children: [
-              const Text(
-                'Total of Expense',
-                style: TextStyle(
-                  color: kTextDark,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Rp.0,00',
-                style: TextStyle(
-                  color: kTextDark,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () {
-                  // TODO: print detail pengeluaran
-                },
-                icon: const Icon(
-                  Icons.print,
-                  color: Color(0xFF26A645),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              SizedBox(
-                height: 44,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kBrandColor,
-                    foregroundColor: kWhiteColor,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 26,
-                      vertical: 0,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  onPressed: () {
-                    // TODO: print summary of expense
-                  },
-                  child: const Text(
-                    'Print Summary of Expense',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ExpDateColumn extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _ExpDateColumn({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 260,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: kTextDark,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 6),
-          _DisabledDateField(text: value),
-        ],
-      ),
-    );
-  }
-}
-
-// ================== KOMPONEN UMUM SALES ==================
-
-class _DateFilterColumn extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _DateFilterColumn({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: kTextDark, fontSize: 12)),
-        const SizedBox(height: 8),
-        _DateBox(text: value),
-      ],
-    );
-  }
-}
-
-class _VoidFilterColumn extends StatelessWidget {
-  const _VoidFilterColumn();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Filter Void',
-          style: TextStyle(color: kTextDark, fontSize: 12),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: const [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.all(Radius.circular(4)),
-                  border: Border.fromBorderSide(
-                    BorderSide(color: kBorderColor, width: 1.5),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: 8),
-            Text('Only void', style: TextStyle(color: kTextDark, fontSize: 12)),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _PrintSalesReportButton extends StatelessWidget {
-  const _PrintSalesReportButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 24),
-      child: SizedBox(
-        width: 180,
-        height: 40,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kBrandColor,
-            foregroundColor: kWhiteColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-          ),
-          onPressed: () {},
-          child: const Text('Print sales report'),
-        ),
       ),
     );
   }
@@ -780,32 +223,236 @@ class _ReportTab extends StatelessWidget {
   }
 }
 
-class _DateBox extends StatelessWidget {
-  final String text;
+// ================== SALES REPORT (TAB 0) ==================
 
-  const _DateBox({required this.text});
+class _SalesReportContent extends StatelessWidget {
+  const _SalesReportContent();
+
+  Future<void> _selectDate(BuildContext context, bool isStart) async {
+    final bloc = context.read<DashboardBloc>();
+    final state = bloc.state;
+    final initialDate = isStart
+        ? (state.reportStartDate ?? DateTime.now())
+        : (state.reportEndDate ?? DateTime.now());
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+
+    if (picked != null) {
+      if (isStart) {
+        bloc.add(
+          ReportDateChanged(
+            startDate: picked,
+            endDate: state.reportEndDate ?? DateTime.now(),
+          ),
+        );
+      } else {
+        bloc.add(
+          ReportDateChanged(
+            startDate: state.reportStartDate ?? DateTime.now(),
+            endDate: picked,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 170,
-      height: 40,
-      decoration: BoxDecoration(
-        color: kWhiteColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: kBorderColor),
-      ),
-      alignment: Alignment.center,
-      child: Text(text, style: const TextStyle(color: kTextDark, fontSize: 12)),
+    final currency = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
+
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final report = state.salesReport;
+        final allTransactions = report?.transactions ?? [];
+        List<dynamic> filteredTransactions;
+
+        // [LOGIKA FILTER BARU]
+        if (state.isReportVoidFilter) {
+          // Jika "Only Void" dicentang: Tampilkan yg SUDAH VOID atau SEDANG REQUEST
+          filteredTransactions = allTransactions.where((tx) {
+            final status = tx['status'];
+            return status == 'VOIDED' || status == 'VOID_REQUESTED';
+          }).toList();
+        } else {
+          // Jika TIDAK dicentang: Tampilkan yang BERHASIL (COMPLETED)
+          filteredTransactions = allTransactions.where((tx) {
+            final status = tx['status'];
+            return status == 'COMPLETED';
+          }).toList();
+        }
+
+        // Hitung ulang total berdasarkan list yang tampil
+        int displayTotalSales = filteredTransactions.fold(0, (sum, tx) {
+          final raw = tx['total_amount'].toString();
+          return sum +
+              (int.tryParse(raw.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0);
+        });
+
+        // Format Tanggal
+        final startStr = state.reportStartDate != null
+            ? DateFormat('dd-MM-yyyy').format(state.reportStartDate!)
+            : DateFormat('dd-MM-yyyy').format(DateTime.now());
+
+        final endStr = state.reportEndDate != null
+            ? DateFormat('dd-MM-yyyy').format(state.reportEndDate!)
+            : DateFormat('dd-MM-yyyy').format(DateTime.now());
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  InkWell(
+                    onTap: () => _selectDate(context, true),
+                    child: _DateFilterColumn(
+                      label: 'Start date',
+                      value: startStr,
+                    ),
+                  ),
+                  const SizedBox(width: 32),
+                  InkWell(
+                    onTap: () => _selectDate(context, false),
+                    child: _DateFilterColumn(label: 'End date', value: endStr),
+                  ),
+                  const SizedBox(width: 32),
+                  _VoidFilterColumn(
+                    isChecked: state.isReportVoidFilter,
+                    onChanged: (val) {
+                      context.read<DashboardBloc>().add(
+                        ToggleReportVoidFilter(val ?? false),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            Expanded(
+              child: filteredTransactions.isEmpty
+                  ? Center(
+                      child: Text(
+                        state.isReportVoidFilter
+                            ? "No Void/Requested Transactions"
+                            : "No Sales Data",
+                        style: const TextStyle(color: kTextGrey),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                      child: ListView.separated(
+                        itemCount: filteredTransactions.length,
+                        separatorBuilder: (context, index) => const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: kBorderColor,
+                        ),
+                        itemBuilder: (context, index) {
+                          final tx = filteredTransactions[index];
+                          final rawTotal = tx['total_amount'].toString();
+                          final total =
+                              int.tryParse(
+                                rawTotal.replaceAll(RegExp(r'[^0-9]'), ''),
+                              ) ??
+                              0;
+                          final noStruk = tx['receipt_number'] ?? '-';
+                          final status = tx['status']; // Ambil status
+
+                          String timeStr = '-';
+                          try {
+                            if (tx['transaction_time'] != null) {
+                              final dt = DateTime.parse(tx['transaction_time']);
+                              timeStr = DateFormat(
+                                'HH:mm',
+                              ).format(dt.toLocal());
+                            }
+                          } catch (_) {}
+
+                          return _SalesRowItem(
+                            receiptNumber: noStruk,
+                            time: timeStr,
+                            amount: currency.format(total),
+                            status: status, // Kirim status ke row item
+                          );
+                        },
+                      ),
+                    ),
+            ),
+
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            Container(
+              height: 70,
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(18),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 24),
+                  const Text(
+                    'Total amount', // Ubah teks agar general
+                    style: TextStyle(
+                      color: kTextDark,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    currency.format(displayTotalSales),
+                    style: TextStyle(
+                      color: state.isReportVoidFilter ? Colors.red : kTextDark,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  const _PrintSalesReportButton(),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _SalesRowItem extends StatelessWidget {
-  const _SalesRowItem();
+  final String receiptNumber;
+  final String time;
+  final String amount;
+  final String status;
+
+  const _SalesRowItem({
+    required this.receiptNumber,
+    required this.time,
+    required this.amount,
+    this.status = 'COMPLETED',
+  });
 
   @override
   Widget build(BuildContext context) {
+    // 1. Tentukan Kondisi
+    final isVoided = status == 'VOIDED';
+    final isRequested = status == 'VOID_REQUESTED';
+
+    // 2. Tentukan Warna Utama
+    Color mainColor = kTextDark;
+    if (isVoided) mainColor = Colors.red; // Tetap Merah
+    if (isRequested) mainColor = Colors.orange; // Tetap Oranye
+
     return SizedBox(
       height: 60,
       child: Row(
@@ -816,37 +463,673 @@ class _SalesRowItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
+                  // Nomor Struk
                   Text(
-                    'TR0511202510001',
+                    receiptNumber,
                     style: TextStyle(
-                      color: kTextDark,
+                      color: mainColor,
                       fontWeight: FontWeight.w500,
+                      // [UPDATE] Hapus decoration: isVoided ? TextDecoration.lineThrough : null,
+                      decoration: null,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    '05-11-2025 09:13:15',
-                    style: TextStyle(color: kTextGrey, fontSize: 11),
+                  const SizedBox(height: 4),
+
+                  // Row untuk Waktu & Label Status
+                  Row(
+                    children: [
+                      Text(
+                        time,
+                        style: const TextStyle(color: kTextGrey, fontSize: 11),
+                      ),
+
+                      // Label untuk VOIDED
+                      if (isVoided) ...[
+                        const SizedBox(width: 8),
+                        const Text(
+                          'VOIDED',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ]
+                      // Label untuk VOID_REQUESTED
+                      else if (isRequested) ...[
+                        const SizedBox(width: 8),
+                        const Text(
+                          'WAITING APPROVAL',
+                          style: TextStyle(
+                            color: Colors.orange,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.only(right: 8),
+
+          // Harga di Kanan
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
             child: Text(
-              'Rp. 18.000,00',
-              style: TextStyle(color: kTextDark, fontWeight: FontWeight.w500),
+              amount,
+              style: TextStyle(
+                color: mainColor,
+                fontWeight: FontWeight.w500,
+                // [UPDATE] Hapus decoration coret juga di sini
+                decoration: null,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+} // ================== ITEM REPORT CONTENT (TAB 1 - DINAMIS) ==================
+
+// ================== ITEM REPORT CONTENT (TAB 1 - FINAL) ==================
+
+// ================== ITEM REPORT CONTENT (TAB 1 - FINAL BLACK COLOR) ==================
+
+class _ItemReportContent extends StatelessWidget {
+  const _ItemReportContent();
+
+  Future<void> _selectDate(BuildContext context, bool isStart) async {
+    final bloc = context.read<DashboardBloc>();
+    final state = bloc.state;
+    final initialDate = isStart
+        ? (state.reportStartDate ?? DateTime.now())
+        : (state.reportEndDate ?? DateTime.now());
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+
+    if (picked != null) {
+      if (isStart) {
+        bloc.add(
+          ReportDateChanged(
+            startDate: picked,
+            endDate: state.reportEndDate ?? DateTime.now(),
+          ),
+        );
+      } else {
+        bloc.add(
+          ReportDateChanged(
+            startDate: state.reportStartDate ?? DateTime.now(),
+            endDate: picked,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final items = state.itemReport;
+
+        final startStr = state.reportStartDate != null
+            ? DateFormat('dd-MM-yyyy').format(state.reportStartDate!)
+            : DateFormat('dd-MM-yyyy').format(DateTime.now());
+        final endStr = state.reportEndDate != null
+            ? DateFormat('dd-MM-yyyy').format(state.reportEndDate!)
+            : DateFormat('dd-MM-yyyy').format(DateTime.now());
+
+        return Column(
+          children: [
+            // Bar atas (Filter)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+              child: Row(
+                children: [
+                  InkWell(
+                    onTap: () => _selectDate(context, true),
+                    child: _DateFilterColumn(
+                      label: 'Start Date',
+                      value: startStr,
+                    ),
+                  ),
+                  const SizedBox(width: 32),
+                  InkWell(
+                    onTap: () => _selectDate(context, false),
+                    child: _DateFilterColumn(label: 'End Date', value: endStr),
+                  ),
+                  const SizedBox(width: 32),
+
+                  // Filter Void Checkbox
+                  _VoidFilterColumn(
+                    isChecked: state.isReportVoidFilter,
+                    onChanged: (val) {
+                      context.read<DashboardBloc>().add(
+                        ToggleReportVoidFilter(val ?? false),
+                      );
+                      context.read<DashboardBloc>().add(
+                        FetchAllReportsRequested(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            // Header Tabel
+            Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  const Expanded(
+                    flex: 6,
+                    child: Text(
+                      'Item Name',
+                      style: TextStyle(
+                        color: kTextDark,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: BlocBuilder<DashboardBloc, DashboardState>(
+                      builder: (context, state) {
+                        // Judul berubah, tapi warna tetap hitam
+                        return Text(
+                          state.isReportVoidFilter
+                              ? 'Quantity Void'
+                              : 'Quantity Sold',
+                          textAlign: TextAlign.left,
+                          style: const TextStyle(
+                            color: kTextDark,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            // List Item
+            Expanded(
+              child: items.isEmpty
+                  ? Center(
+                      child: Text(
+                        state.isReportVoidFilter
+                            ? "No voided items found"
+                            : "No items sold",
+                        style: const TextStyle(color: kTextGrey),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: kBorderColor),
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 6,
+                                child: Text(
+                                  item.productName,
+                                  style: const TextStyle(
+                                    color: kTextDark, // Tetap Hitam
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 4,
+                                child: Text(
+                                  item.quantitySold.toString(),
+                                  style: const TextStyle(
+                                    color:
+                                        kTextDark, // Tetap Hitam (Permintaan Anda)
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            // Bottom bar
+            Container(
+              height: 64,
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () {},
+                    icon: const Icon(
+                      Icons.print,
+                      color: Color(0xFF26A645),
+                      size: 24,
+                    ),
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    height: 44,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kBrandColor,
+                        foregroundColor: kWhiteColor,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 26,
+                          vertical: 0,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      onPressed: () {},
+                      child: Text(
+                        state.isReportVoidFilter
+                            ? 'Print Void Items Recap'
+                            : 'Print Item-wise Sales Recap',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+} 
+
+// ================== EXPENDITURE REPORT (FINAL FIX WITH END DATE) ==================
+
+class _ExpenditureReportContent extends StatelessWidget {
+  const _ExpenditureReportContent();
+
+  Future<void> _selectDate(BuildContext context, bool isStart) async {
+    final bloc = context.read<DashboardBloc>();
+    final state = bloc.state;
+    final initialDate = isStart
+        ? (state.reportStartDate ?? DateTime.now())
+        : (state.reportEndDate ?? DateTime.now());
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+
+    if (picked != null) {
+      if (isStart) {
+        bloc.add(ReportDateChanged(
+            startDate: picked,
+            endDate: state.reportEndDate ?? DateTime.now()));
+      } else {
+        bloc.add(ReportDateChanged(
+            startDate: state.reportStartDate ?? DateTime.now(),
+            endDate: picked));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
+
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final report = state.expenseReport;
+        final expenses = report?.expenses ?? [];
+
+        final startStr = state.reportStartDate != null
+            ? DateFormat('dd-MM-yyyy').format(state.reportStartDate!)
+            : DateFormat('dd-MM-yyyy').format(DateTime.now());
+
+        // [TAMBAHAN] Format End Date
+        final endStr = state.reportEndDate != null
+            ? DateFormat('dd-MM-yyyy').format(state.reportEndDate!)
+            : DateFormat('dd-MM-yyyy').format(DateTime.now());
+
+        return Column(
+          children: [
+            // Bar atas
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+              child: Row(
+                children: [
+                  // Start Date
+                  InkWell(
+                    onTap: () => _selectDate(context, true),
+                    child: _DateFilterColumn(label: 'Start Date', value: startStr),
+                  ),
+                  
+                  const SizedBox(width: 32), // Jarak antar filter
+
+                  // [PERBAIKAN] Tambahkan End Date Di Sini
+                  InkWell(
+                    onTap: () => _selectDate(context, false),
+                    child: _DateFilterColumn(label: 'End Date', value: endStr),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            // Header Tabel
+            Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              alignment: Alignment.centerLeft,
+              child: const Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Text('Date',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: kTextDark)),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text('Notes',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: kTextDark)),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text('Created By',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: kTextDark)),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text('Amount',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: kTextDark)),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            // List Pengeluaran
+            Expanded(
+              child: expenses.isEmpty
+                  ? const Center(
+                      child: Text(
+                      "No expense data available",
+                      style: TextStyle(color: kTextGrey),
+                    ))
+                  : ListView.separated(
+                      itemCount: expenses.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: kBorderColor),
+                      itemBuilder: (context, index) {
+                        final exp = expenses[index];
+                        final amount =
+                            int.tryParse(exp['amount'].toString()) ?? 0;
+
+                        String dateStr = exp['expense_date'] ?? '-';
+                        try {
+                          final dt = DateTime.parse(dateStr);
+                          dateStr = DateFormat('dd/MM/yyyy').format(dt);
+                        } catch (_) {}
+
+                        // Logika Nama
+                        String displayName = 'System';
+                        final shift = exp['shift'];
+                        final user = exp['user'];
+
+                        if (shift != null &&
+                            shift['cashier'] != null &&
+                            shift['cashier']['full_name'] != null) {
+                          displayName = shift['cashier']['full_name'].toString();
+                        }
+
+                        if (displayName == 'System' &&
+                            user != null &&
+                            user['full_name'] != null) {
+                          displayName = user['full_name'].toString();
+                        }
+
+                        // Debug Print (Bisa dihapus jika sudah aman)
+                        // print("EXP ID: ${exp['expense_id']} -> Name: $displayName");
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Text(dateStr,
+                                    style: const TextStyle(
+                                        color: kTextDark,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500)),
+                              ),
+                              Expanded(
+                                flex: 4,
+                                child: Text(exp['description'] ?? '-',
+                                    style: const TextStyle(
+                                        color: kTextDark,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(displayName,
+                                    style: const TextStyle(
+                                        color: kTextDark,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500)),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(currency.format(amount),
+                                    style: const TextStyle(
+                                        color: kTextDark,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+
+            // Footer total
+            Container(
+              height: 64,
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+              child: Row(
+                children: [
+                  const Text(
+                    'Total of Expense',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, color: kTextDark),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    currency.format(report?.totalExpense ?? 0),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w500, color: kTextDark),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () {},
+                    icon: const Icon(Icons.print,
+                        color: Color(0xFF26A645), size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    height: 44,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kBrandColor,
+                        foregroundColor: kWhiteColor,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 26, vertical: 0),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      onPressed: () {},
+                      child: const Text(
+                        'Print Summary of Expense',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}// ================== WIDGET PEMBANTU ==================
+
+class _DateFilterColumn extends StatelessWidget {
+  final String label;
+  final String value;
+  const _DateFilterColumn({required this.label, required this.value});
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: kTextDark, fontSize: 12)),
+        const SizedBox(height: 8),
+        Container(
+          width: 170,
+          height: 40,
+          decoration: BoxDecoration(
+            color: kWhiteColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: kBorderColor),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            value,
+            style: const TextStyle(color: kTextDark, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-// ================== CARD DETAIL KANAN ==================
+class _VoidFilterColumn extends StatelessWidget {
+  final bool isChecked;
+  final ValueChanged<bool?>? onChanged; // Callback saat ditekan
+
+  const _VoidFilterColumn({this.isChecked = false, this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Filter Void',
+          style: TextStyle(color: kTextDark, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: Checkbox(
+                value: isChecked,
+                onChanged: onChanged, // Gunakan callback
+                activeColor: kBrandColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                side: const BorderSide(color: kBorderColor, width: 1.5),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Only void',
+              style: TextStyle(color: kTextDark, fontSize: 12),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PrintSalesReportButton extends StatelessWidget {
+  const _PrintSalesReportButton();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 24),
+      child: SizedBox(
+        width: 180,
+        height: 40,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kBrandColor,
+            foregroundColor: kWhiteColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+          ),
+          onPressed: () {},
+          child: const Text('Print sales report'),
+        ),
+      ),
+    );
+  }
+}
 
 class _SalesDetailCard extends StatelessWidget {
   const _SalesDetailCard();
@@ -861,6 +1144,7 @@ class _SalesDetailCard extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Header
           Container(
             height: 52,
             decoration: const BoxDecoration(
@@ -874,6 +1158,8 @@ class _SalesDetailCard extends StatelessWidget {
               style: TextStyle(color: kTextDark, fontWeight: FontWeight.w600),
             ),
           ),
+
+          // Content Area
           const Expanded(
             child: Center(
               child: Column(
@@ -889,6 +1175,8 @@ class _SalesDetailCard extends StatelessWidget {
               ),
             ),
           ),
+
+          // Footer dengan Button
           Container(
             height: 70,
             decoration: const BoxDecoration(
@@ -909,7 +1197,7 @@ class _SalesDetailCard extends StatelessWidget {
                   ),
                 ),
                 onPressed: () {},
-                child: const Text('Print receipt'),
+                child: const Text('Print receipt 1'),
               ),
             ),
           ),

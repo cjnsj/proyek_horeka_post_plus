@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 import 'package:intl/intl.dart';
 
@@ -19,19 +23,7 @@ class _PaymentPageState extends State<PaymentPage> {
     decimalDigits: 0,
   );
 
-  // Sample data - nanti ganti dengan data dari cart
-  final List<Map<String, dynamic>> cartItems = [
-    {'name': 'Mie', 'category': 'BSS', 'price': 18000.0, 'quantity': 1},
-  ];
-
-  double get subtotal => cartItems.fold(
-    0,
-    (sum, item) => sum + (item['price'] * item['quantity']),
-  );
-  double get discount => 0.0;
-  double get tax => 0.0;
-  double get total => subtotal - discount + tax;
-
+  // --- LOGIKA NUMPAD (TIDAK BERUBAH) ---
   void _onNumberPressed(String value) {
     setState(() {
       if (value == '⌫') {
@@ -42,591 +34,630 @@ class _PaymentPageState extends State<PaymentPage> {
           );
         }
       } else {
-        _paymentController.text += value;
+        // Cegah input 0 di awal
+        if (_paymentController.text == '0' && value != '.') {
+          _paymentController.text = value;
+        } else {
+          _paymentController.text += value;
+        }
       }
     });
   }
 
- void _showQrisDialog() {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    barrierColor: kBrandColor.withOpacity(0.5), // Tambahkan barrier semi-transparan
-    builder: (BuildContext context) {
-      return Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        backgroundColor: Colors.white, // Pastikan background putih
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          width: 400,
-          decoration: BoxDecoration(
-            color: Colors.white, // Background card putih
+  // --- [BARU] LOGIKA PROSES BAYAR ---
+  void _processPayment(BuildContext context, double totalAmount) {
+    if (selectedPaymentMethod == 'Cash') {
+      // Validasi Uang Tunai
+      final cleanAmount = _paymentController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      final inputCash = int.tryParse(cleanAmount) ?? 0;
+
+      if (inputCash < totalAmount) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Uang tunai kurang!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Kirim Event Transaksi CASH
+      context.read<DashboardBloc>().add(
+            const CreateTransactionRequested(paymentMethod: "CASH"),
+          );
+    } else {
+      // Kirim Event Transaksi Non-Tunai (QRIS, dll)
+      String methodApi = selectedPaymentMethod.toUpperCase();
+      // Handle penamaan khusus jika ada
+      if (methodApi.contains("QRIS")) methodApi = "QRIS";
+      
+      context.read<DashboardBloc>().add(
+            CreateTransactionRequested(paymentMethod: methodApi),
+          );
+    }
+  }
+
+  // --- [UPDATE] DIALOG QRIS (MENGHUBUNGKAN TOMBOL REFRESH/CHECK) ---
+  void _showQrisDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: kBrandColor.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'QRIS Payment',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+          backgroundColor: Colors.white,
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            width: 400,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'QRIS Payment',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // QR Code Icon (placeholder - nanti ganti dengan QR code generator)
-              Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.white, // Background QR putih
-                  border: Border.all(color: Colors.grey.shade300, width: 2),
-                  borderRadius: BorderRadius.circular(8),
+                // QR Code Icon
+                Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Colors.grey.shade300, width: 2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.qr_code_2,
+                    size: 120,
+                    color: Colors.black87,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.qr_code_2,
-                  size: 120,
-                  color: Colors.black87,
+
+                const SizedBox(height: 24),
+
+                // NMID
+                const Text(
+                  'NMID : ID83764643838283',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-              // NMID
-              const Text(
-                'NMID : ID83764643838283',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black87,
+                // Total Label
+                const Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 16),
+                const SizedBox(height: 8),
 
-              // Total Label
-              const Text(
-                'Total',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Total Amount
-              Text(
-                total.toStringAsFixed(1),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey.shade600,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
+                // Total Amount (Ambil dari State Bloc nanti saat dipanggil, disini placeholder visual)
+                BlocBuilder<DashboardBloc, DashboardState>(
+                  builder: (context, state) {
+                    return Text(
+                      currencyFormat.format(state.totalAmount),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                    );
+                  }
+                ),
+
+                const SizedBox(height: 32),
+
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade600,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // [LOGIC] Refresh QRIS / Check Status -> Anggap Sukses & Kirim Transaksi
+                          Navigator.of(context).pop();
+                          context.read<DashboardBloc>().add(
+                            const CreateTransactionRequested(paymentMethod: "QRIS"),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4A3AA0),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Refresh QRIS',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // [INTEGRASI] Menggunakan BlocConsumer untuk Data Real & Listener
+    return BlocConsumer<DashboardBloc, DashboardState>(
+      listener: (context, state) {
+        if (state.status == DashboardStatus.transactionSuccess) {
+           showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: const Icon(Icons.check_circle, color: Colors.green, size: 60),
+              content: const Text(
+                'Pembayaran Berhasil!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pop(); // Kembali ke Dashboard
+                  },
+                  child: const Text('OK'),
+                )
+              ],
+            ),
+          );
+        }
+        if (state.status == DashboardStatus.error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.errorMessage ?? 'Gagal'), backgroundColor: Colors.red),
+          );
+        }
+      },
+      builder: (context, state) {
+        // [DATA ASLI] Mengambil data dari State
+        final cartItems = state.cartItems;
+        final totalAmount = state.totalAmount.toDouble();
+        final discount = 0.0; // Bisa diupdate jika ada logika diskon
+        final tax = 0.0;      // Bisa diupdate jika ada logika pajak
+        // Total kalkulasi akhir (jika ada logic tambahan, sesuaikan disini)
+        final total = totalAmount - discount + tax;
+
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: Padding(
+            padding: const EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: 35,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300, width: 2),
+              ),
+              child: Column(
+                children: [
+                  // Header dengan Back Button, Title, dan Print Button
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.black,
+                            size: 24,
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Pembayaran',
+                          style: TextStyle(
+                            color: Color(0xFF4A3AA0),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.print,
+                            color: Colors.green,
+                            size: 28,
+                          ),
+                          onPressed: () {
+                            // TODO: Print receipt
+                          },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 16),
+
+                  // Content - 3 kolom
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: Refresh QRIS
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4A3AA0),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      children: [
+                        // Left Section - Cart Items (1/3)
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                right: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                // Header kategori & item
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey.shade300,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Item', // Disederhanakan dari BSS
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Detail Pesanan',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Item details [DATA ASLI]
+                                Expanded(
+                                  child: ListView.separated(
+                                    padding: const EdgeInsets.all(16),
+                                    itemCount: cartItems.length,
+                                    separatorBuilder: (_, __) => const Divider(),
+                                    itemBuilder: (context, index) {
+                                      final item = cartItems[index];
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // Nama Produk
+                                            Expanded(
+                                              flex: 2,
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    item.product.name,
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    currencyFormat.format(item.product.price),
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.grey.shade600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            // Qty
+                                            Text(
+                                              'x${item.quantity}',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 24),
+                                            // Total harga per item
+                                            Expanded(
+                                              child: Text(
+                                                currencyFormat.format(item.subtotal),
+                                                textAlign: TextAlign.right,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+
+                                
+                              ],
+                            ),
+                          ),
                         ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Refresh QRIS',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+
+                        // Middle Section - Payment Summary (1/3)
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                right: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Summary [DATA ASLI]
+                                _buildSummaryRow(
+                                  'Discount',
+                                  discount,
+                                  isNegative: true,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildSummaryRow('Subtotal', totalAmount),
+                                const SizedBox(height: 16),
+                                _buildSummaryRow('Tax', tax, isPositive: true),
+                                const SizedBox(height: 16),
+                                _buildSummaryRow('Total', total, isBold: true),
+
+                                const Spacer(flex: 12),
+
+                                // Payment Method Buttons (TETAP SAMA)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPaymentMethodButton('Cash'),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPaymentMethodButton('Qris'),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPaymentMethodButton('Debit/Credit'),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPaymentMethodButton('Cash + Debit/Credit'),
+                                    ),
+                                  ],
+                                ),
+
+                                const Spacer(flex: 2),
+
+                                // Payment Input
+                                Text(
+                                  selectedPaymentMethod,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _paymentController,
+                                  readOnly: true,
+                                  textAlign: TextAlign.right,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.grey.shade800, // Sedikit lebih gelap agar terbaca
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Total to Pay',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 15,
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+
+                                // Print Receipt Button (Tombol Proses)
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 52,
+                                  child: ElevatedButton(
+                                    onPressed: state.status == DashboardStatus.loading 
+                                        ? null 
+                                        : () => _processPayment(context, total),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF4A3AA0),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: state.status == DashboardStatus.loading
+                                        ? const CircularProgressIndicator(color: Colors.white)
+                                        : const Text(
+                                            'Print Receipt',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+
+                        // Right Section - Numpad (1/3) - (TETAP SAMA)
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final cellWidth = constraints.maxWidth / 3;
+                              final cellHeight = constraints.maxHeight / 4;
+                              final aspectRatio = cellWidth / cellHeight;
+
+                              return GridView.count(
+                                crossAxisCount: 3,
+                                mainAxisSpacing: 1,
+                                crossAxisSpacing: 1,
+                                padding: EdgeInsets.zero,
+                                childAspectRatio: aspectRatio,
+                                physics: const NeverScrollableScrollPhysics(),
+                                children: [
+                                  _buildNumpadButton('1'),
+                                  _buildNumpadButton('2'),
+                                  _buildNumpadButton('3'),
+                                  _buildNumpadButton('4'),
+                                  _buildNumpadButton('5'),
+                                  _buildNumpadButton('6'),
+                                  _buildNumpadButton('7'),
+                                  _buildNumpadButton('8'),
+                                  _buildNumpadButton('9'),
+                                  _buildNumpadButton(''), // Kosong
+                                  _buildNumpadButton('0'),
+                                  _buildNumpadButton('⌫'),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: 35,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300, width: 2),
-          ),
-          child: Column(
-            children: [
-              // Header dengan Back Button, Title, dan Print Button
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade300, width: 1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        color: Colors.black,
-                        size: 24,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 16),
-                    const Text(
-                      'Pembayaran',
-                      style: TextStyle(
-                        color: Color(0xFF4A3AA0),
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.print,
-                        color: Colors.green,
-                        size: 28,
-                      ),
-                      onPressed: () {
-                        // TODO: Print receipt
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Content - 3 kolom
-              Expanded(
-                child: Row(
-                  children: [
-                    // Left Section - Cart Items (1/3)
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            right: BorderSide(
-                              color: Colors.grey.shade300,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            // Header kategori & item
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade300,
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'BSS',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'BSS',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            // Item details
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Baris pertama: Mie, Qty, Total harga
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        // Mie di kiri
-                                        const Expanded(
-                                          child: Text(
-                                            'Mie',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                        ),
-                                        // Qty
-                                        const Text(
-                                          'Qty',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 24),
-
-                                        // Total harga di paling kanan (diturunkan sedikit)
-                                        Transform.translate(
-                                          offset: const Offset(0, 10),
-                                          child: const Text(
-                                            'Rp. 18.000,00',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    // Baris kedua: Harga satuan, angka 1
-                                    Row(
-                                      children: [
-                                        // Harga satuan di kiri
-                                        Expanded(
-                                          child: Text(
-                                            'Rp.18.000,00',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ),
-                                        // Angka 1 (sejajar dengan Qty di atas)
-                                        const Text(
-                                          '1',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 42),
-                                        // Space kosong untuk sejajar dengan total harga
-                                        const SizedBox(width: 100),
-                                      ],
-                                    ),
-                                    const Spacer(),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                            // Thank You Section
-                            Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(
-                                    color: Colors.grey.shade300,
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 32,
-                                ),
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'Thank You',
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Welcome Back',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Middle Section - Payment Summary (1/3)
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            right: BorderSide(
-                              color: Colors.grey.shade300,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Summary
-                            _buildSummaryRow(
-                              'Discount',
-                              discount,
-                              isNegative: true,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildSummaryRow('Subtotal', subtotal),
-                            const SizedBox(height: 16),
-                            _buildSummaryRow('Tax', tax, isPositive: true),
-                            const SizedBox(height: 16),
-                            _buildSummaryRow('Total', total, isBold: true),
-
-                            const Spacer(flex: 12),
-
-                            // Payment Method Buttons
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildPaymentMethodButton('Cash'),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildPaymentMethodButton('Qris'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildPaymentMethodButton(
-                                    'Debit/Credit',
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildPaymentMethodButton(
-                                    'Cash + Debit/Credit',
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Payment Input
-                            Text(
-                              selectedPaymentMethod,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _paymentController,
-                              readOnly: true,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.grey.shade400,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Total to Pay',
-                                hintStyle: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 15,
-                                ),
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 14,
-                                ),
-                              ),
-                            ),
-                            const Spacer(),
-
-                            // Print Receipt Button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  // TODO: Process payment & print receipt
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF4A3AA0),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: const Text(
-                                  'Print Receipt',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Right Section - Numpad (1/3) - DIPERBAIKI
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          // Hitung aspect ratio berdasarkan ruang yang tersedia
-                          final cellWidth = constraints.maxWidth / 3;
-                          final cellHeight =
-                              constraints.maxHeight / 4; // 4 baris
-                          final aspectRatio = cellWidth / cellHeight;
-
-                          return GridView.count(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 1,
-                            crossAxisSpacing: 1,
-                            padding: EdgeInsets.zero,
-                            childAspectRatio: aspectRatio,
-                            physics: const NeverScrollableScrollPhysics(),
-                            children: [
-                              _buildNumpadButton('1'),
-                              _buildNumpadButton('2'),
-                              _buildNumpadButton('3'),
-                              _buildNumpadButton('4'),
-                              _buildNumpadButton('5'),
-                              _buildNumpadButton('6'),
-                              _buildNumpadButton('7'),
-                              _buildNumpadButton('8'),
-                              _buildNumpadButton('9'),
-                              _buildNumpadButton(''), // Kosong
-                              _buildNumpadButton('0'),
-                              _buildNumpadButton('⌫'),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
+
+  // --- WIDGET HELPER (TIDAK BERUBAH SECARA VISUAL) ---
 
   Widget _buildSummaryRow(
     String label,
@@ -668,9 +699,10 @@ class _PaymentPageState extends State<PaymentPage> {
       onTap: () {
         setState(() {
           selectedPaymentMethod = method;
+          // Reset input jika pindah metode agar tidak bingung
+          _paymentController.clear();
         });
 
-        // Show QRIS dialog jika method adalah Qris
         if (method == 'Qris') {
           _showQrisDialog();
         }
@@ -707,6 +739,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return InkWell(
       onTap: () => _onNumberPressed(value),
       child: Container(
+        margin: const EdgeInsets.all(1),
         color: Colors.grey.shade100,
         child: Center(
           child: Text(

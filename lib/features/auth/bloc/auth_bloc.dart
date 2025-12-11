@@ -9,6 +9,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Timer? _backgroundTimer;
 
   AuthBloc({required this.repository}) : super(const AuthState()) {
+    // --- [BARU] Handler untuk Cek Status Login Otomatis ---
+    on<AppStarted>(_onAppStarted);
+
+    // --- Handler Lainnya ---
     on<CheckActivationStatusRequested>(_onCheckActivationStatus);
     on<ActivationRequested>(_onActivationRequested);
     on<FetchDeviceInfoRequested>(_onFetchDeviceInfo);
@@ -19,6 +23,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<LogoutRequested>(_onLogoutRequested);
     on<BackgroundTicked>(_onBackgroundTicked);
 
+    // Mulai timer untuk animasi background di halaman login
     _startBackgroundTimer();
   }
 
@@ -36,8 +41,77 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     return super.close();
   }
 
-  // ... (Handler CheckActivation, Activation, FetchDevice, Login, ValidatePin, OpenShift TETAP SAMA) ...
-  // Copy dari kode sebelumnya untuk handler-handler di atas.
+  // ===========================================================================
+  // [BARU] HANDLER CEK TOKEN SAAT APLIKASI DIMULAI
+  // ===========================================================================
+  Future<void> _onAppStarted(
+    AppStarted event,
+    Emitter<AuthState> emit,
+  ) async {
+    // Kita set status loading sebentar (opsional, bisa langsung cek)
+    // emit(state.copyWith(status: AuthStatus.loading)); 
+
+    try {
+      // 1. Cek apakah device sudah diaktivasi (Penting!)
+      final isActivated = await repository.checkActivationStatus();
+
+      if (!isActivated) {
+        // Jika belum aktivasi, arahkan ke halaman aktivasi
+        emit(state.copyWith(
+          status: AuthStatus.success, // Atau initial
+          isActivated: false,
+          isAuthenticated: false,
+        ));
+        return;
+      }
+
+      // 2. Jika sudah aktivasi, ambil Info Device (Cabang & Jadwal Shift)
+      // Ini penting agar saat logout nanti data cabang tidak hilang
+      Map<String, dynamic> deviceInfo = {};
+      try {
+        deviceInfo = await repository.getDeviceInfo();
+      } catch (_) {
+        // Abaikan jika gagal fetch info saat start (mungkin offline), lanjut cek token
+      }
+
+      // 3. Cek apakah User punya Token Login (Auto Login)
+      final hasToken = await repository.hasToken();
+
+      if (hasToken) {
+        // STOP Timer Background karena user sudah masuk dashboard
+        _backgroundTimer?.cancel();
+
+        emit(state.copyWith(
+          status: AuthStatus.authenticated, // Langsung ke Dashboard
+          isActivated: true,
+          isAuthenticated: true,
+          // Isi data cabang jika berhasil fetch tadi
+          branchName: deviceInfo['branch_name'] ?? state.branchName,
+          schedules: deviceInfo['schedules'] ?? state.schedules,
+        ));
+      } else {
+        // Jika tidak ada token, User harus Login
+        emit(state.copyWith(
+          status: AuthStatus.unauthenticated, // Ke Login Page
+          isActivated: true,
+          isAuthenticated: false,
+          branchName: deviceInfo['branch_name'] ?? state.branchName,
+          schedules: deviceInfo['schedules'] ?? state.schedules,
+        ));
+      }
+    } catch (e) {
+      // Jika terjadi error parah, reset ke unauthenticated
+      emit(state.copyWith(
+        status: AuthStatus.unauthenticated,
+        isActivated: true, // Asumsi activated agar tidak stuck di aktivasi
+        isAuthenticated: false,
+      ));
+    }
+  }
+
+  // ===========================================================================
+  // HANDLER LAINNYA (SAMA SEPERTI SEBELUMNYA)
+  // ===========================================================================
 
   Future<void> _onCheckActivationStatus(
     CheckActivationStatusRequested event,
@@ -126,7 +200,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         status: AuthStatus.error,
         errorMessage: e.toString(),
       ));
-      emit(state.copyWith(status: AuthStatus.success));
+      // Reset status ke success/initial agar UI tidak stuck loading
+      emit(state.copyWith(status: AuthStatus.unauthenticated)); 
     }
   }
 
@@ -150,6 +225,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         errorMessage: e.toString(),
         isPinValidated: false,
       ));
+      // Kembalikan ke authenticated agar tidak keluar dari halaman dashboard (jika logic menghendaki)
+      // Atau tetap di state error untuk dialog
       emit(state.copyWith(status: AuthStatus.authenticated)); 
     }
   }
@@ -191,7 +268,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  // --- [PERBAIKAN] Handler Tutup Shift ---
   Future<void> _onCloseShiftRequested(
     CloseShiftRequested event,
     Emitter<AuthState> emit,
@@ -202,16 +278,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await repository.logout();
       _startBackgroundTimer();
 
-      // [FIX]: Jangan pakai const AuthState() karena akan mereset branchName.
-      // Gunakan nilai dari state saat ini.
       emit(AuthState(
-        status: AuthStatus.success,
+        status: AuthStatus.unauthenticated, // Arahkan ke Login Page
         isActivated: true,
-        isAuthenticated: false, // Trigger navigasi ke Login
+        isAuthenticated: false,
         isShiftOpen: false,
         isPinValidated: false,
-        branchName: state.branchName, // [PENTING] Pertahankan Nama Cabang
-        schedules: state.schedules,   // [PENTING] Pertahankan Jadwal Shift
+        branchName: state.branchName, // Pertahankan Nama Cabang
+        schedules: state.schedules,   // Pertahankan Jadwal Shift
         backgroundIndex: state.backgroundIndex,
       ));
     } catch (e) {
@@ -223,23 +297,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  // --- [PERBAIKAN] Handler Logout Biasa ---
   Future<void> _onLogoutRequested(
     LogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
+    // Logout manual (tombol logout)
     await repository.logout();
     _startBackgroundTimer();
     
-    // [FIX]: Pertahankan data cabang dan jadwal
     emit(AuthState(
-      status: AuthStatus.success,
+      status: AuthStatus.unauthenticated, // Arahkan ke Login Page
       isActivated: true,
       isAuthenticated: false,
       isShiftOpen: false,
       isPinValidated: false,
-      branchName: state.branchName, // [PENTING] Pertahankan Nama Cabang
-      schedules: state.schedules,   // [PENTING] Pertahankan Jadwal Shift
+      branchName: state.branchName, // Pertahankan Nama Cabang
+      schedules: state.schedules,   // Pertahankan Jadwal Shift
       backgroundIndex: state.backgroundIndex,
     ));
   }

@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart'; // Import Image Picker
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 
 class ExpenseDialog extends StatefulWidget {
   const ExpenseDialog({super.key, required this.onSave});
 
-  final Function(String desc, String amount) onSave;
+  // Update callback untuk menerima imagePath
+  final Function(String desc, String amount, String? imagePath) onSave;
 
   @override
   State<ExpenseDialog> createState() => _ExpenseDialogState();
@@ -14,145 +17,271 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
   final _descController = TextEditingController();
   final _amountController = TextEditingController();
 
+  // Variabel untuk menyimpan gambar yang dipilih
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  // [UPDATE] Fungsi Pilih Gambar dengan Validasi Ukuran 1 MB
+  Future<void> _pickImage() async {
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50, // Kompresi kualitas (opsional)
+    );
+
+    if (pickedFile != null) {
+      File imageFile = File(pickedFile.path);
+
+      // Hitung ukuran file dalam Bytes
+      int sizeInBytes = await imageFile.length();
+      double sizeInMb = sizeInBytes / (1024 * 1024); // Konversi ke MB
+
+      // [VALIDASI] Jika lebih dari 1 MB, tolak!
+      if (sizeInMb > 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ukuran gambar terlalu besar! Maksimal 1 MB.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        // Jangan simpan file ke state, langsung keluar
+        return;
+      }
+      print(
+        "📸 [DEBUG UI] Gambar dipilih: ${pickedFile.path}",
+      ); // <--- TAMBAH INI
+      print(
+        "📸 [DEBUG UI] Ukuran: ${sizeInMb.toStringAsFixed(2)} MB",
+      ); // <--- TAMBAH INI
+
+      // Jika lolos validasi (<= 1 MB), simpan ke state
+      setState(() {
+        _selectedImage = imageFile;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _descController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      elevation: 0,
-      backgroundColor: Colors.transparent,
-      child: Center(
-        child: Container(
-          width: 430,
-          padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 32),
-          decoration: BoxDecoration(
-            color: kWhiteColor,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                  blurRadius: 24,
-                  color: Colors.black.withOpacity(0.13),
-                  offset: const Offset(0, 6))
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Description field
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Description",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: kTextDark,
-                    fontSize: 15,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Colors.white,
+      child: Container(
+        width: 450, // Lebar disesuaikan
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- 1. UPLOAD IMAGE SECTION ---
+            const Text(
+              "Upload Image Proof :",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: _pickImage,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 120, // Tinggi area upload
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  // Membuat border solid (bisa diganti package dotted_border jika ingin putus-putus)
+                  border: Border.all(
+                    color: Colors.grey.shade400,
+                    width: 1.5,
+                    style: BorderStyle.solid,
                   ),
                 ),
-              ),
-              SizedBox(height: 8),
-              TextField(
-                controller: _descController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: EdgeInsets.symmetric(vertical: 11, horizontal: 18),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: kBorderColor, width: 1.2),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: kBorderColor, width: 1.2),
-                  ),
-                ),
-              ),
-              SizedBox(height: 22),
-              // Amount field
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Amount of expenditure (Rp)",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: kTextDark,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-              SizedBox(height: 8),
-              TextField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: EdgeInsets.symmetric(vertical: 11, horizontal: 18),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: kBorderColor, width: 1.2),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: kBorderColor, width: 1.2),
-                  ),
-                ),
-              ),
-              SizedBox(height: 34),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: Color(0xFF888888),
-                        foregroundColor: kWhiteColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                child: _selectedImage != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.file(
+                          _selectedImage!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
                         ),
-                        side: BorderSide(color: Color(0xFF888888)),
-                        padding: EdgeInsets.symmetric(vertical: 14),
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_photo_alternate_outlined,
+                            size: 40,
+                            color: Colors.grey.shade500,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Max 1 MB files are allowed", // [UPDATE] Teks sesuai logika
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // --- 2. DESCRIPTION ---
+            const Text(
+              "Description :",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _descController,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  borderSide: BorderSide(color: kBrandColor),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // --- 3. AMOUNT ---
+            const Text(
+              "Amount of expenditure (Rp) :",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  borderSide: BorderSide(color: kBrandColor),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // --- 4. BUTTONS ---
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade600,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
                       ),
                       onPressed: () {
                         Navigator.of(context).pop();
                       },
-                      child: Text(
+                      child: const Text(
                         'Cancel',
                         style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
                         ),
                       ),
                     ),
                   ),
-                  SizedBox(width: 24),
-                  Expanded(
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: kBrandColor,
-                        foregroundColor: kWhiteColor,
+                        backgroundColor: const Color(0xFF4A3AA0), // Warna Ungu
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
                       ),
                       onPressed: () {
+                        print(
+                          "🖱️ [DEBUG UI] Tombol Save Ditekan",
+                        ); // <--- TAMBAH INI
+                        print(
+                          "📝 [DEBUG UI] Desc: ${_descController.text}, Amount: ${_amountController.text}, Path: ${_selectedImage?.path}",
+                        ); // <--- TAMBAH INI
+                        // Kirim data balik ke parent via callback
                         widget.onSave(
                           _descController.text,
                           _amountController.text,
+                          _selectedImage?.path, // Kirim path gambar (bisa null)
                         );
                         Navigator.of(context).pop();
                       },
-                      child: Text(
+                      child: const Text(
                         'Save',
                         style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

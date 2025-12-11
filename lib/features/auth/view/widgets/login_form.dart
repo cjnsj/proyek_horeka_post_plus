@@ -38,7 +38,8 @@ class _LoginFormState extends State<LoginForm> {
     super.dispose();
   }
 
-  void _performLogin(BuildContext context, List<Map<String, dynamic>> schedules) {
+  // [PERBAIKAN] Ubah parameter menjadi List<dynamic>
+  void _performLogin(BuildContext context, List<dynamic> schedules) { 
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
 
@@ -62,7 +63,6 @@ class _LoginFormState extends State<LoginForm> {
           ),
         );
   }
-
   void _showError(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -303,7 +303,8 @@ class _LoginFormState extends State<LoginForm> {
     );
   }
 
-  Widget _buildShiftSelector(List<Map<String, dynamic>> schedules) {
+  // [PERBAIKAN] Ubah parameter menjadi List<dynamic>
+  Widget _buildShiftSelector(List<dynamic> schedules) {
     if (schedules.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -322,9 +323,11 @@ class _LoginFormState extends State<LoginForm> {
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          // Gunakan map pada List<dynamic>
           children: schedules.map((schedule) {
-            final String shiftId = schedule['id'];
-            final String apiShiftName = schedule['name'];
+            // Lakukan casting aman di sini jika perlu, atau akses langsung karena dynamic
+            final String shiftId = schedule['id'].toString(); 
+            final String apiShiftName = schedule['name'].toString();
             final String displayShiftName = _formatShiftName(apiShiftName);
 
             return _buildRadioOption(displayShiftName, shiftId);
@@ -333,7 +336,6 @@ class _LoginFormState extends State<LoginForm> {
       ],
     );
   }
-
   Widget _buildRadioOption(String label, String value) {
     return InkWell(
       onTap: () {

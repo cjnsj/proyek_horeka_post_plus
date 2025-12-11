@@ -19,6 +19,8 @@ class ActivationRequested extends AuthEvent {
 }
 
 class FetchDeviceInfoRequested extends AuthEvent {}
+// [BARU] Event untuk mengecek status login saat aplikasi start
+class AppStarted extends AuthEvent {}
 
 class LoginRequested extends AuthEvent {
   final String username;

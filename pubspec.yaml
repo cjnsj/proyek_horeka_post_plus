@@ -48,6 +48,9 @@ dependencies:
   uuid: ^4.4.0 # (atau versi terbaru)dependencies:
   intl: ^0.18.1
   qr_flutter: ^4.1.0
+  fluttertoast: ^8.2.4
+  image_picker: ^1.0.7 # Tambahkan ini
+  http_parser: ^4.1.2 # <--- TAMBAHKAN INI
 
 
 
