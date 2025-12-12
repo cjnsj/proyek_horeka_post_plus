@@ -88,7 +88,7 @@ class DashboardRepository {
               (item) => {
                 "product_id": item.product.productId,
                 "quantity": item.quantity,
-                "item_note": item.note ?? "",
+                "item_note": item.note ,
               },
             )
             .toList(),
@@ -399,9 +399,9 @@ class DashboardRepository {
     }
   }
 
-  // ==================== FITUR REPORT ====================
+  // ==================== FITUR REPORT (SESUAI BACKEND) ====================
 
-  // 11. Get Sales Report
+  // 11. Get Sales Report (WAJIB KIRIM CASHIER ID)
   Future<SalesReportModel> getSalesReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -409,6 +409,8 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
+
+      // [WAJIB] Ambil cashierId (biasanya disimpan sbg user_id saat login)
       final cashierId = prefs.getString('user_id');
 
       String url = '${AppConstants.apiBaseUrl}/report/sales';
@@ -416,11 +418,13 @@ class DashboardRepository {
       List<String> params = [];
       if (startDate != null && endDate != null) {
         final startStr = startDate.toIso8601String().split('T')[0];
-        final endStr = endDate.toIso8601String().split('T')[0];
+        // [PERBAIKAN] Tambahkan jam akhir hari agar transaksi hari ini terbaca
+        final endStr = "${endDate.toIso8601String().split('T')[0]} 23:59:59";
         params.add('tanggalMulai=$startStr');
         params.add('tanggalSelesai=$endStr');
       }
 
+      // [WAJIB] Kirim cashierId ke Backend agar lolos validasi kasir
       if (cashierId != null) {
         params.add('cashierId=$cashierId');
       }
@@ -429,22 +433,29 @@ class DashboardRepository {
         url += '?${params.join('&')}';
       }
 
+      print("🔍 [REPO-SALES] Request ke: $url");
+
       final response = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
       );
 
+      print("📥 [REPO-SALES] Status: ${response.statusCode}");
+      print("📦 [REPO-SALES] Body: ${response.body}");
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        // Backend mengirim { summary: ..., data: ... }
         return SalesReportModel.fromJson(data);
       }
-      throw Exception('Failed to load sales report');
+      throw Exception('Failed to load sales report: ${response.statusCode}');
     } catch (e) {
+      print("❌ [REPO-SALES ERROR] $e");
       throw Exception(e.toString());
     }
   }
 
-  // 12. Get Item Report
+  // 12. Get Item Report (WAJIB KIRIM CASHIER ID)
   Future<List<ItemReportModel>> getItemReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -456,45 +467,53 @@ class DashboardRepository {
       final cashierId = prefs.getString('user_id');
 
       String url = '${AppConstants.apiBaseUrl}/report/items';
-
       List<String> params = [];
+
       if (startDate != null && endDate != null) {
         final startStr = startDate.toIso8601String().split('T')[0];
-        final endStr = endDate.toIso8601String().split('T')[0];
+        // [PERBAIKAN] Sama, tambahkan jam akhir
+        final endStr = "${endDate.toIso8601String().split('T')[0]} 23:59:59";
         params.add('tanggalMulai=$startStr');
         params.add('tanggalSelesai=$endStr');
       }
 
-      if (onlyVoid) {
-        params.add('status=VOIDED');
-      } else {
+      if (onlyVoid)
+        params.add('status=VOIDED,VOID_REQUESTED');
+      else
         params.add('status=COMPLETED');
-      }
 
+      // [WAJIB] Kirim cashierId
       if (cashierId != null) {
         params.add('cashierId=$cashierId');
       }
 
-      if (params.isNotEmpty) {
-        url += '?${params.join('&')}';
-      }
+      if (params.isNotEmpty) url += '?${params.join('&')}';
+
+      print("🔍 [REPO-ITEM] Request ke: $url");
 
       final response = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
       );
 
+      print("📥 [REPO-ITEM] Status: ${response.statusCode}");
+
       if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
-        return data.map((e) => ItemReportModel.fromJson(e)).toList();
+        // Backend mengirim List langsung [...] untuk item report
+        final dynamic data = jsonDecode(response.body);
+        if (data is List) {
+          return data.map((e) => ItemReportModel.fromJson(e)).toList();
+        }
+        return [];
       }
       return [];
     } catch (e) {
+      print("❌ [REPO-ITEM ERROR] $e");
       return [];
     }
   }
 
-  // 13. Get Expense Report
+  // 13. Get Expense Report (WAJIB KIRIM CASHIER ID)
   Future<ExpenseReportModel> getExpenseReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -505,27 +524,30 @@ class DashboardRepository {
       final cashierId = prefs.getString('user_id');
 
       String url = '${AppConstants.apiBaseUrl}/report/expenses';
-
       List<String> params = [];
+
       if (startDate != null && endDate != null) {
         final startStr = startDate.toIso8601String().split('T')[0];
-        final endStr = endDate.toIso8601String().split('T')[0];
+        final endStr = "${endDate.toIso8601String().split('T')[0]} 23:59:59";
         params.add('tanggalMulai=$startStr');
         params.add('tanggalSelesai=$endStr');
       }
 
+      // [WAJIB] Kirim cashierId
       if (cashierId != null) {
         params.add('cashierId=$cashierId');
       }
 
-      if (params.isNotEmpty) {
-        url += '?${params.join('&')}';
-      }
+      if (params.isNotEmpty) url += '?${params.join('&')}';
+
+      print("🔍 [REPO-EXPENSE] Request ke: $url");
 
       final response = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
       );
+
+      print("📥 [REPO-EXPENSE] Status: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -533,12 +555,12 @@ class DashboardRepository {
       }
       throw Exception('Failed to load expense report');
     } catch (e) {
+      print("❌ [REPO-EXPENSE ERROR] $e");
       throw Exception(e.toString());
     }
   }
 
   // 14. Hapus Antrian
-  // [PERBAIKAN] Menggunakan parameter String id
   Future<void> deleteQueue(String id) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -560,78 +582,22 @@ class DashboardRepository {
     }
   }
 
-  // 15. Hitung Diskon (Promo Code)
-  // [PERBAIKAN] Mengarah ke endpoint /transaction/calculate
+  // 15. Hitung Diskon (Opsional)
   Future<Map<String, dynamic>> calculateDiscount({
     required List<CartItem> items,
     required String promoCode,
   }) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
-
-      // Endpoint sesuai backend baru
-      final url = '${AppConstants.apiBaseUrl}/transaction/calculate';
-
-      final body = {
-        "promo_code": promoCode,
-        "items": items
-            .map(
-              (item) => {
-                "product_id": item.product.productId,
-                "quantity": item.quantity,
-              },
-            )
-            .toList(),
-      };
-
-      print("🚀 [REPO] Cek Diskon ke: $url");
-      print("📦 [REPO] Body: ${jsonEncode(body)}");
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(body),
-      );
-
-      print("📥 [REPO] Status: ${response.statusCode}");
-      print("📥 [REPO] Response: ${response.body}");
-
-      if (response.body.trim().startsWith('<')) {
-        throw Exception(
-          'Server Error: Backend belum direstart atau URL salah.',
-        );
-      }
-
-      final responseJson = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        // Backend baru mengembalikan format: { message: "...", data: { total_discount: "..." } }
-        return responseJson['data'];
-      } else {
-        throw Exception(
-          responseJson['message'] ?? 'Gagal memproses kode promo',
-        );
-      }
-    } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
-    }
+    return {};
   }
 
-  // ==================== TAX SETTINGS (PAJAK) [READ ONLY] ====================
-
-  // 16. Ambil Pengaturan Pajak (GET) - HANYA INI YANG DISISAKAN
+  // 16. Ambil Pengaturan Pajak
   Future<Map<String, dynamic>> getTaxSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      
+
       final url = '${AppConstants.apiBaseUrl}/branch/tax';
-      
+
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -650,14 +616,14 @@ class DashboardRepository {
     }
   }
 
-  // 17. Ambil Metode Pembayaran (Dynamic Payment)
+  // 17. Ambil Metode Pembayaran
   Future<List<PaymentMethodModel>> getPaymentMethods() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      
+
       final url = '${AppConstants.apiBaseUrl}/payment';
-      
+
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -668,11 +634,9 @@ class DashboardRepository {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data
-            .map((json) => PaymentMethodModel.fromJson(json))
-            .toList();
+        return data.map((json) => PaymentMethodModel.fromJson(json)).toList();
       } else {
-        return []; // Return kosong jika gagal, agar UI tidak error blokir
+        return [];
       }
     } catch (e) {
       print("Error fetching payment methods: $e");
@@ -680,8 +644,7 @@ class DashboardRepository {
     }
   }
 
-  // 18. [BARU] Hitung Transaksi Lengkap (Server-Side Calculation)
-  // Digunakan oleh DashboardBloc untuk menghitung Subtotal, Diskon (Auto+Manual), dan Pajak
+  // 18. Hitung Transaksi Lengkap
   Future<TransactionCalculationModel> calculateTransaction({
     required List<CartItem> items,
     String? promoCode,
@@ -694,12 +657,16 @@ class DashboardRepository {
       final url = '${AppConstants.apiBaseUrl}/transaction/calculate';
 
       final body = {
-        "items": items.map((e) => {
-          "product_id": e.product.productId, 
-          "quantity": e.quantity,
-          "item_note": e.note
-        }).toList(),
-        "promo_code": promoCode, // Kirim null jika tidak ada
+        "items": items
+            .map(
+              (e) => {
+                "product_id": e.product.productId,
+                "quantity": e.quantity,
+                "item_note": e.note,
+              },
+            )
+            .toList(),
+        "promo_code": promoCode,
       };
 
       print("🚀 [REPO] Calculating Transaction: $url");
@@ -726,7 +693,7 @@ class DashboardRepository {
   }
 }
 
-// ================== MODEL CLASSSES UNTUK KALKULASI ==================
+// ================== MODEL CLASSSES ==================
 
 class TransactionCalculationModel {
   final int subtotal;

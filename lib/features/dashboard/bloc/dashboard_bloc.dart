@@ -11,7 +11,12 @@ import 'package:horeka_post_plus/features/dashboard/data/queue_model.dart';
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final DashboardRepository repository;
 
-  DashboardBloc({required this.repository}) : super(const DashboardState()) {
+  // [PERBAIKAN] Inisialisasi state dengan tanggal hari ini agar tidak null
+  DashboardBloc({required this.repository}) 
+      : super(DashboardState(
+          reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
+          reportEndDate: DateTime.now(),
+        )) {
     // --- Session / Lifecycle ---
     on<DashboardStarted>(_onDashboardStarted);
     on<SaveDashboardSession>(_onSaveDashboardSession);
@@ -48,7 +53,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     // --- Report ---
     on<FetchAllReportsRequested>(_onFetchAllReportsRequested);
     on<ToggleReportVoidFilter>(_onToggleReportVoidFilter);
-    // [KODE YANG SEBELUMNYA HILANG - SUDAH DIKEMBALIKAN]
+    // [PENTING] Handler ini TETAP ADA
     on<ReportDateChanged>(_onReportDateChanged);
 
     // --- Tax Settings ---
@@ -56,6 +61,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
     // --- Payment Methods ---
     on<FetchPaymentMethodsRequested>(_onFetchPaymentMethodsRequested);
+
+    // Di dalam Constructor DashboardBloc:
+  on<SelectReportTransaction>(_onSelectReportTransaction);
   }
 
   // ================= SESSION HANDLERS =================
@@ -558,9 +566,15 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           endDate: state.reportEndDate,
           onlyVoid: state.isReportVoidFilter,
         ),
-        repository.getExpenseReport(),
+        repository.getExpenseReport(
+          startDate: state.reportStartDate,
+          endDate: state.reportEndDate,
+        ),
       ]);
 
+      // [DEBUG] Cek Data Masuk
+      // (Opsional: Anda bisa tambahkan print di sini untuk debug)
+      
       emit(
         state.copyWith(
           reportStatus: DashboardStatus.success,
@@ -586,7 +600,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(state.copyWith(isReportVoidFilter: event.isVoid));
   }
 
-  // [KODE YANG SEBELUMNYA HILANG - SUDAH DIKEMBALIKAN]
   void _onReportDateChanged(
     ReportDateChanged event,
     Emitter<DashboardState> emit,
@@ -595,6 +608,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       reportStartDate: event.startDate,
       reportEndDate: event.endDate,
     ));
+    // Trigger ulang fetch data dengan tanggal baru
     add(FetchAllReportsRequested());
   }
 
@@ -632,5 +646,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     } catch (e) {
       print("Failed to load payment methods: $e");
     }
+  }
+
+  // [TAMBAHKAN FUNGSI HANDLER INI DI BAWAH]
+  void _onSelectReportTransaction(
+    SelectReportTransaction event,
+    Emitter<DashboardState> emit,
+  ) {
+    emit(state.copyWith(selectedReportTransaction: event.transaction));
   }
 }

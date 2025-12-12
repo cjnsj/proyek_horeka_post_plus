@@ -41,10 +41,11 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    print('🚀 [DEBUG UI] HomePage initState berjalan. Memanggil DashboardStarted...'); // <--- DEBUG 7
+    print(
+      '🚀 [DEBUG UI] HomePage initState berjalan. Memanggil DashboardStarted...',
+    ); // <--- DEBUG 7
     context.read<DashboardBloc>().add(DashboardStarted());
   }
-
 
   void _showPinDialog() {
     if (_isDialogShowing) return; // Safety check
@@ -66,7 +67,8 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     ).then((_) {
-      if (mounted) setState(() => _isDialogShowing = false); // Reset Flag saat tutup
+      if (mounted)
+        setState(() => _isDialogShowing = false); // Reset Flag saat tutup
     });
   }
 
@@ -93,11 +95,12 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     ).then((_) {
-      if (mounted) setState(() => _isDialogShowing = false); // Reset Flag saat tutup
+      if (mounted)
+        setState(() => _isDialogShowing = false); // Reset Flag saat tutup
     });
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final cartWidth = screenWidth >= 1200 ? 430.0 : screenWidth * 0.32;
@@ -107,23 +110,34 @@ class _HomePageState extends State<HomePage> {
         // --- 1. Listener Auth ---
         BlocListener<AuthBloc, AuthState>(
           listener: (context, state) {
-            print("🔔 [LISTENER AUTH] Status: ${state.status}, ShiftOpen: ${state.isShiftOpen}");
-            
+            print(
+              "🔔 [LISTENER AUTH] Status: ${state.status}, ShiftOpen: ${state.isShiftOpen}",
+            );
+
             if (state.status == AuthStatus.error) {
-              final isPinError = state.errorMessage?.toLowerCase().contains('pin') == true;
+              final isPinError =
+                  state.errorMessage?.toLowerCase().contains('pin') == true;
               if (!isPinError) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(state.errorMessage ?? 'Terjadi kesalahan'), backgroundColor: Colors.red),
+                  SnackBar(
+                    content: Text(state.errorMessage ?? 'Terjadi kesalahan'),
+                    backgroundColor: Colors.red,
+                  ),
                 );
               }
             }
 
             // PIN Sukses -> Saldo
-            if (state.status == AuthStatus.success && state.isPinValidated && !state.isShiftOpen) {
-              print("✅ [LOGIC] PIN Valid. Menutup dialog PIN & Buka Dialog Saldo.");
+            if (state.status == AuthStatus.success &&
+                state.isPinValidated &&
+                !state.isShiftOpen) {
+              print(
+                "✅ [LOGIC] PIN Valid. Menutup dialog PIN & Buka Dialog Saldo.",
+              );
               if (_isDialogShowing) Navigator.of(context).pop();
               Future.delayed(const Duration(milliseconds: 300), () {
-                if (mounted) _showStartingBalanceDialog(state.tempCashierId ?? '');
+                if (mounted)
+                  _showStartingBalanceDialog(state.tempCashierId ?? '');
               });
             }
 
@@ -132,7 +146,10 @@ class _HomePageState extends State<HomePage> {
               print("✅ [LOGIC] Shift Terbuka! Simpan Sesi & Fetch Menu.");
               if (_isDialogShowing) Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Shift berhasil dibuka!'), backgroundColor: Colors.green),
+                const SnackBar(
+                  content: Text('Shift berhasil dibuka!'),
+                  backgroundColor: Colors.green,
+                ),
               );
               context.read<DashboardBloc>().add(SaveDashboardSession());
               context.read<DashboardBloc>().add(FetchMenuRequested());
@@ -141,7 +158,8 @@ class _HomePageState extends State<HomePage> {
             // Logout
             if (state.status == AuthStatus.success && !state.isAuthenticated) {
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const AuthPage()), (route) => false,
+                MaterialPageRoute(builder: (_) => const AuthPage()),
+                (route) => false,
               );
             }
           },
@@ -150,20 +168,38 @@ class _HomePageState extends State<HomePage> {
         // --- 2. Listener Dashboard ---
         BlocListener<DashboardBloc, DashboardState>(
           listener: (context, state) {
-            print("🔔 [LISTENER DASHBOARD] Status: ${state.status}, PinEntered: ${state.isPinEntered}");
+            print(
+              "🔔 [LISTENER DASHBOARD] Status: ${state.status}, PinEntered: ${state.isPinEntered}",
+            );
 
             // Cek Sesi
             if (state.status == DashboardStatus.success) {
               final authState = context.read<AuthBloc>().state;
               if (!state.isPinEntered && !authState.isShiftOpen) {
-                print("⚠️ [LOGIC] Sesi belum ada & Shift belum buka -> Show PIN Dialog");
+                print(
+                  "⚠️ [LOGIC] Sesi belum ada & Shift belum buka -> Show PIN Dialog",
+                );
                 _showPinDialog();
               }
             }
             // Toasts...
-            if (state.status == DashboardStatus.expenseSuccess) Fluttertoast.showToast(msg: "Pengeluaran Berhasil!", backgroundColor: Colors.green);
-            if (state.status == DashboardStatus.queueSuccess) Fluttertoast.showToast(msg: "Antrian Disimpan!", backgroundColor: Colors.blue);
-            if (state.status == DashboardStatus.error) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Error'), backgroundColor: Colors.red));
+            if (state.status == DashboardStatus.expenseSuccess)
+              Fluttertoast.showToast(
+                msg: "Pengeluaran Berhasil!",
+                backgroundColor: Colors.green,
+              );
+            if (state.status == DashboardStatus.queueSuccess)
+              Fluttertoast.showToast(
+                msg: "Antrian Disimpan!",
+                backgroundColor: Colors.blue,
+              );
+            if (state.status == DashboardStatus.error)
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage ?? 'Error'),
+                  backgroundColor: Colors.red,
+                ),
+              );
           },
         ),
       ],
@@ -172,21 +208,31 @@ class _HomePageState extends State<HomePage> {
         builder: (context, dashboardState) {
           return BlocBuilder<AuthBloc, AuthState>(
             builder: (context, authState) {
-              
               // LOGIKA LOADING (Penyebab Terkunci)
               final bool isAuthLoading = authState.status == AuthStatus.loading;
-              final bool isDashLoading = dashboardState.status == DashboardStatus.loading;
+              final bool isDashLoading =
+                  dashboardState.status == DashboardStatus.loading;
               final bool isLoading = isAuthLoading || isDashLoading;
 
               // PRINT DEBUG UI SETIAP KALI REBUILD
               // Perhatikan log ini di console!
-              print("🎨 [BUILD UI] ------------------------------------------------");
-              print("   -> Auth Status      : ${authState.status} (Loading? $isAuthLoading)");
-              print("   -> Dashboard Status : ${dashboardState.status} (Loading? $isDashLoading)");
+              print(
+                "🎨 [BUILD UI] ------------------------------------------------",
+              );
+              print(
+                "   -> Auth Status      : ${authState.status} (Loading? $isAuthLoading)",
+              );
+              print(
+                "   -> Dashboard Status : ${dashboardState.status} (Loading? $isDashLoading)",
+              );
               print("   -> Is Shift Open    : ${authState.isShiftOpen}");
               print("   -> Is Pin Entered   : ${dashboardState.isPinEntered}");
-              print("   -> FINAL IS LOADING : $isLoading (Jika TRUE, Layar Terkunci!)");
-              print("---------------------------------------------------------------");
+              print(
+                "   -> FINAL IS LOADING : $isLoading (Jika TRUE, Layar Terkunci!)",
+              );
+              print(
+                "---------------------------------------------------------------",
+              );
 
               return Stack(
                 children: [
@@ -199,27 +245,44 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           if (_index == 0)
                             Positioned.fill(
-                              top: 16, bottom: 16,
+                              top: 16,
+                              bottom: 16,
                               child: Align(
                                 alignment: Alignment.centerRight,
-                                child: SizedBox(width: cartWidth, child: const _CartAreaFullScreen()),
+                                child: SizedBox(
+                                  width: cartWidth,
+                                  child: const _CartAreaFullScreen(),
+                                ),
                               ),
                             ),
-                          if (_index == 1) const Positioned.fill(child: ReportPage()),
-                          if (_index == 2) const Positioned.fill(child: PrinterSettingsPage()),
+                          if (_index == 1)
+                            const Positioned.fill(child: ReportPage()),
+                          if (_index == 2)
+                            const Positioned.fill(child: PrinterSettingsPage()),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 24,
+                            ),
                             child: Column(
                               children: [
                                 _TopHeaderGlobal(currentIndex: _index),
                                 const SizedBox(height: 16),
                                 Expanded(
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      _SideMenu(index: _index, onTap: (i) => setState(() => _index = i)),
+                                      _SideMenu(
+                                        index: _index,
+                                        onTap: (i) =>
+                                            setState(() => _index = i),
+                                      ),
                                       const SizedBox(width: 16),
-                                      if (_index == 0) const Expanded(child: _ProductOnlyArea()),
+                                      if (_index == 0)
+                                        const Expanded(
+                                          child: _ProductOnlyArea(),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -238,8 +301,11 @@ class _HomePageState extends State<HomePage> {
                     Stack(
                       children: [
                         // Tembok transparan (tetap ada agar layar tidak bisa diklik)
-                        const ModalBarrier(dismissible: false, color: Colors.black38),
-                        
+                        const ModalBarrier(
+                          dismissible: false,
+                          color: Colors.black38,
+                        ),
+
                         // Spinner langsung di tengah tanpa kotak putih
                         const Center(
                           child: CircularProgressIndicator(color: kBrandColor),
@@ -293,7 +359,7 @@ class _ProductAreaCombined extends StatelessWidget {
       margin: const EdgeInsets.only(left: 6, top: 4, bottom: 4, right: 38),
       decoration: BoxDecoration(
         color: kWhiteColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: kCardShadow,
       ),
       child: Column(
@@ -306,8 +372,8 @@ class _ProductAreaCombined extends StatelessWidget {
             decoration: const BoxDecoration(
               color: kBrandColor,
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
             ),
             child: BlocBuilder<DashboardBloc, DashboardState>(
@@ -338,14 +404,16 @@ class _ProductAreaCombined extends StatelessWidget {
                       child: InkWell(
                         onTap: () {
                           context.read<DashboardBloc>().add(
-                                SelectCategory(category),
-                              );
+                            SelectCategory(category),
+                          );
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
-                            color: isSelected ? kWhiteColor : Colors.transparent,
+                            color: isSelected
+                                ? kWhiteColor
+                                : Colors.transparent,
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(12),
                             ),
@@ -377,7 +445,7 @@ class _ProductAreaCombined extends StatelessWidget {
                                   decoration: const BoxDecoration(
                                     color: Colors.grey,
                                     borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(2),
+                                      top: Radius.circular(12),
                                     ),
                                   ),
                                 )
@@ -420,8 +488,8 @@ class _ProductAreaCombined extends StatelessWidget {
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () => context.read<DashboardBloc>().add(
-                                FetchMenuRequested(),
-                              ),
+                            FetchMenuRequested(),
+                          ),
                           child: const Text('Coba Lagi'),
                         ),
                       ],
@@ -453,11 +521,11 @@ class _ProductAreaCombined extends StatelessWidget {
                     itemCount: state.filteredProducts.length,
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1.4,
-                    ),
+                          crossAxisCount: 4,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.4,
+                        ),
                     itemBuilder: (context, index) {
                       final product = state.filteredProducts[index];
                       return _MenuCard(product: product);
@@ -616,7 +684,7 @@ class _BottomActionsBar extends StatelessWidget {
                 ).push(MaterialPageRoute(builder: (_) => const VoidModePage()));
               },
             ),
-            const SizedBox(width: 27),
+            const SizedBox(width: 22),
             _BottomButton(
               label: 'Print Receipt',
               onPressed: () {
@@ -625,7 +693,7 @@ class _BottomActionsBar extends StatelessWidget {
                 );
               },
             ),
-            const SizedBox(width: 27),
+            const SizedBox(width: 22),
             _BottomButton(
               label: 'Expense',
               onPressed: () {
@@ -644,19 +712,19 @@ class _BottomActionsBar extends StatelessWidget {
 
                       if (intAmount > 0 && desc.isNotEmpty) {
                         context.read<DashboardBloc>().add(
-                              CreateExpenseRequested(
-                                description: desc,
-                                amount: intAmount,
-                                imagePath: imagePath, // Teruskan path gambar
-                              ),
-                            );
+                          CreateExpenseRequested(
+                            description: desc,
+                            amount: intAmount,
+                            imagePath: imagePath, // Teruskan path gambar
+                          ),
+                        );
                       }
                     },
                   ),
                 );
               },
             ),
-            const SizedBox(width: 27),
+            const SizedBox(width: 22),
             _BottomButton(
               label: 'Queue List',
               onPressed: () {
@@ -681,7 +749,7 @@ class _BottomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 155,
+      width: 158,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: kWhiteColor,
@@ -690,7 +758,7 @@ class _BottomButton extends StatelessWidget {
           shadowColor: kBrandColor.withOpacity(0.25),
           minimumSize: const Size.fromHeight(55),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
         onPressed: onPressed,
@@ -712,10 +780,10 @@ class _CartAreaFullScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: Container(
-        margin: const EdgeInsets.only(right: 24),
+        margin: const EdgeInsets.only(right: 24, top: 8, bottom: 5),
         decoration: BoxDecoration(
           color: kWhiteColor,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: kCardShadow,
         ),
         child: Column(
@@ -736,12 +804,12 @@ class _CartHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 73,
+      height: 80,
       decoration: const BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(18),
-          topRight: Radius.circular(18),
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
         ),
         border: Border(bottom: BorderSide(color: kBorderColor, width: 1)),
       ),
@@ -781,18 +849,18 @@ class _CartContent extends StatelessWidget {
       builder: (context, state) {
         if (state.cartItems.isEmpty) {
           return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(
-                    Icons.shopping_cart_outlined,
-                    size: 48,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 8),
-                  Text('Keranjang Kosong', style: TextStyle(color: kTextGrey)),
-                ],
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(
+                  Icons.shopping_cart_outlined,
+                  size: 48,
+                  color: Colors.grey,
+                ),
+                SizedBox(height: 8),
+                Text('Keranjang Kosong', style: TextStyle(color: kTextGrey)),
+              ],
+            ),
           );
         }
 
@@ -839,7 +907,7 @@ class _CartContent extends StatelessWidget {
                         foregroundColor: kWhiteColor,
                         minimumSize: const Size.fromHeight(55),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       onPressed: () async {
@@ -857,13 +925,13 @@ class _CartContent extends StatelessWidget {
                         if (state.editingQueue != null) {
                           // --- MODE EDIT: UPDATE LANGSUNG (BYPASS DIALOG) ---
                           context.read<DashboardBloc>().add(
-                                SaveQueueRequested(
-                                  // Pakai data lama dari antrian yang sedang diedit
-                                  tableNumber: state.editingQueue!.customerName,
-                                  waiterName: "",
-                                  orderNotes: state.editingQueue!.note,
-                                ),
-                              );
+                            SaveQueueRequested(
+                              // Pakai data lama dari antrian yang sedang diedit
+                              tableNumber: state.editingQueue!.customerName,
+                              waiterName: "",
+                              orderNotes: state.editingQueue!.note,
+                            ),
+                          );
                         } else {
                           // --- MODE BARU: TAMPILKAN DIALOG ---
                           final result = await showDialog(
@@ -875,19 +943,21 @@ class _CartContent extends StatelessWidget {
 
                           if (result != null && result is Map) {
                             context.read<DashboardBloc>().add(
-                                  SaveQueueRequested(
-                                    tableNumber: result['tableNumber'] ?? '',
-                                    waiterName: result['waiterName'] ?? '',
-                                    orderNotes: result['orderNotes'] ?? '',
-                                  ),
-                                );
+                              SaveQueueRequested(
+                                tableNumber: result['tableNumber'] ?? '',
+                                waiterName: result['waiterName'] ?? '',
+                                orderNotes: result['orderNotes'] ?? '',
+                              ),
+                            );
                           }
                         }
                       },
                       // Ubah teks tombol sesuai mode
-                      child: Text(state.editingQueue != null
-                          ? 'Update Queue'
-                          : 'Save Queue'),
+                      child: Text(
+                        state.editingQueue != null
+                            ? 'Update Queue'
+                            : 'Save Queue',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -900,7 +970,7 @@ class _CartContent extends StatelessWidget {
                         foregroundColor: kWhiteColor,
                         minimumSize: const Size.fromHeight(55),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       onPressed: () {
@@ -947,8 +1017,8 @@ class _CartItemRow extends StatelessWidget {
                 children: [
                   InkWell(
                     onTap: () => context.read<DashboardBloc>().add(
-                          AddToCart(item.product),
-                        ),
+                      AddToCart(item.product),
+                    ),
                     child: const Icon(
                       Icons.add_circle_outline,
                       color: kBrandColor,
@@ -958,8 +1028,8 @@ class _CartItemRow extends StatelessWidget {
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: () => context.read<DashboardBloc>().add(
-                          RemoveFromCart(item.product),
-                        ),
+                      RemoveFromCart(item.product),
+                    ),
                     child: const Icon(
                       Icons.remove_circle_outline,
                       color: Colors.red,
@@ -1032,12 +1102,12 @@ class _SummaryColumn extends StatelessWidget {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         // Ambil data langsung dari hasil hitungan server di State
-        final subtotal = state.subtotal; 
+        final subtotal = state.subtotal;
         final tax = state.taxValue;
         final total = state.finalTotalAmount;
-        
+
         // List promo yang didapat dari server (Gabungan Auto & Manual)
-        final promos = state.appliedPromos; 
+        final promos = state.appliedPromos;
 
         final formatter = NumberFormat.currency(
           locale: 'id_ID',
@@ -1049,24 +1119,24 @@ class _SummaryColumn extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 1. Subtotal (Harga Barang)
-            _SummaryRow(
-              label: 'Subtotal', 
-              value: formatter.format(subtotal)
-            ),
-            
+            _SummaryRow(label: 'Subtotal', value: formatter.format(subtotal)),
+
             // 2. LOOPING DISKON DARI SERVER
             // Ini akan menampilkan "Diskon Wkwkwk", "Promo HEMAT", dll secara terpisah
             if (promos.isNotEmpty) ...[
               const SizedBox(height: 4),
-              ...promos.map((promo) => _SummaryRow(
-                label: 'Discount (${promo.name})',// Nama Diskon (misal: "Disc Otomatis")
-                value: '- ${formatter.format(promo.amount)}',
-                textColor: Colors.green, // Hijau biar kelihatan untung
-              )),
+              ...promos.map(
+                (promo) => _SummaryRow(
+                  label:
+                      'Discount (${promo.name})', // Nama Diskon (misal: "Disc Otomatis")
+                  value: '- ${formatter.format(promo.amount)}',
+                  textColor: Colors.green, // Hijau biar kelihatan untung
+                ),
+              ),
             ] else if (state.discountAmount > 0) ...[
-               // Fallback jika appliedPromos kosong tapi ada nilai diskon (backward compatibility)
-               _SummaryRow(
-                label: 'Discount', 
+              // Fallback jika appliedPromos kosong tapi ada nilai diskon (backward compatibility)
+              _SummaryRow(
+                label: 'Discount',
                 value: '- ${formatter.format(state.discountAmount)}',
                 textColor: Colors.green,
               ),
@@ -1075,17 +1145,15 @@ class _SummaryColumn extends StatelessWidget {
             // 3. Tax (Pajak)
             const SizedBox(height: 4),
             _SummaryRow(
-              label: state.taxPercentage > 0 
-                  ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)' 
+              label: state.taxPercentage > 0
+                  ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)'
                   : 'Tax',
-              value: '+ ${formatter.format(tax)}', 
+              value: '+ ${formatter.format(tax)}',
               textColor: Colors.red,
             ),
 
             const SizedBox(height: 8),
-            const Divider(color: kBorderColor),
-            const SizedBox(height: 8),
-            
+
             // 4. Total Akhir
             _SummaryRow(
               label: 'Total',
@@ -1098,6 +1166,7 @@ class _SummaryColumn extends StatelessWidget {
     );
   }
 }
+
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
@@ -1115,7 +1184,7 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = TextStyle(
       // Gunakan textColor jika ada, jika tidak gunakan kTextGrey (default)
-      color: textColor ?? kTextGrey, 
+      color: textColor ?? kTextGrey,
       fontSize: 13,
       fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
     );
@@ -1131,6 +1200,7 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
+
 class _PromoCodeButton extends StatelessWidget {
   const _PromoCodeButton();
 
@@ -1148,11 +1218,9 @@ class _PromoCodeButton extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
-              side: BorderSide(
-                color: hasPromo ? activeColor : kBorderColor,
-              ),
+              side: BorderSide(color: hasPromo ? activeColor : kBorderColor),
               backgroundColor: hasPromo ? activeColor.withOpacity(0.1) : null,
             ),
             onPressed: () {
@@ -1174,8 +1242,8 @@ class _PromoCodeButton extends StatelessWidget {
                   'assets/icons/promocode.svg',
                   width: 16,
                   height: 16,
-                  colorFilter: hasPromo 
-                      ? ColorFilter.mode(activeColor, BlendMode.srcIn) 
+                  colorFilter: hasPromo
+                      ? ColorFilter.mode(activeColor, BlendMode.srcIn)
                       : null,
                 ),
                 const SizedBox(width: 6),
@@ -1189,8 +1257,8 @@ class _PromoCodeButton extends StatelessWidget {
                 ),
                 if (hasPromo) ...[
                   const SizedBox(width: 4),
-                  Icon(Icons.close, size: 14, color: activeColor)
-                ]
+                  Icon(Icons.close, size: 14, color: activeColor),
+                ],
               ],
             ),
           ),
@@ -1215,7 +1283,7 @@ class _PromoCodeButton extends StatelessWidget {
     );
   }
 }
- 
+
 class _SideMenu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
@@ -1235,22 +1303,25 @@ class _SideMenu extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 110),
-          
+
           // --- Menu 1: Print ---
           Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: () => onTap(0),
               // [PERBAIKAN] Padding dipindah ke dalam InkWell agar area sentuh luas
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 30,
+                  horizontal: 16,
+                ),
                 child: SvgPicture.asset(
                   'assets/icons/print.svg',
                   height: 28,
                   width: 28,
+
                   // Opsional: Beri warna jika sedang aktif (index == 0)
-                  
                 ),
               ),
             ),
@@ -1261,14 +1332,16 @@ class _SideMenu extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () => onTap(1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 30,
+                  horizontal: 16,
+                ),
                 child: SvgPicture.asset(
                   'assets/icons/document.svg',
                   height: 28,
                   width: 28,
-                  
                 ),
               ),
             ),
@@ -1279,14 +1352,16 @@ class _SideMenu extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () => onTap(2),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 30,
+                  horizontal: 16,
+                ),
                 child: SvgPicture.asset(
                   'assets/icons/settings.svg',
                   height: 22, // Ukuran asli icon settings
                   width: 22,
-                
                 ),
               ),
             ),
@@ -1312,9 +1387,11 @@ class _SideMenu extends StatelessWidget {
                     context.read<AuthBloc>().add(CloseShiftRequested());
                   }
                 },
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0), // Padding untuk area sentuh
+                  padding: const EdgeInsets.all(
+                    16.0,
+                  ), // Padding untuk area sentuh
                   child: SvgPicture.asset(
                     'assets/icons/logout.svg',
                     height: 28,
@@ -1329,6 +1406,7 @@ class _SideMenu extends StatelessWidget {
     );
   }
 }
+
 class _ShiftEndedDialog extends StatelessWidget {
   const _ShiftEndedDialog();
 
@@ -1336,15 +1414,14 @@ class _ShiftEndedDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Positioned.fill(
-            child: Container(color: kBrandColor.withOpacity(0.35))),
+        Positioned.fill(child: Container(color: kBrandColor.withOpacity(0.35))),
         Center(
           child: Container(
             width: 420,
             padding: const EdgeInsets.fromLTRB(32, 32, 32, 28),
             decoration: BoxDecoration(
               color: kWhiteColor,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.18),
@@ -1381,7 +1458,7 @@ class _ShiftEndedDialog extends StatelessWidget {
                       backgroundColor: kBrandColor,
                       foregroundColor: kWhiteColor,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     onPressed: () => Navigator.of(context).pop(true),
@@ -1424,7 +1501,7 @@ class _TopHeaderGlobal extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: kWhiteColor,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: kCardShadow,
           ),
           child: AnimatedSwitcher(
@@ -1452,7 +1529,7 @@ class _HeaderFullContent extends StatelessWidget {
         children: [
           // Logo
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: Image.asset(
               'assets/images/logo.png',
               width: 45,
@@ -1461,7 +1538,7 @@ class _HeaderFullContent extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          
+
           // Judul (Bungkus Flexible agar bisa mengecil jika sempit)
           const Flexible(
             child: Text(
@@ -1475,14 +1552,15 @@ class _HeaderFullContent extends StatelessWidget {
               ),
             ),
           ),
-          
+
           const Spacer(), // Pemisah fleksibel
-          
+          const Spacer(),
+          const Spacer(),
           // Search Bar
           // [PERBAIKAN] Ubah Flexible ke Expanded atau sesuaikan constraints
           Container(
             // Hapus minWidth: 200 agar tidak overflow di layar kecil
-            constraints: const BoxConstraints(maxWidth: 260), 
+            constraints: const BoxConstraints(maxWidth: 260),
             height: 48,
             decoration: BoxDecoration(
               color: kWhiteColor,
@@ -1497,7 +1575,10 @@ class _HeaderFullContent extends StatelessWidget {
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Find menu',
-                      hintStyle: TextStyle(color: kTextGrey, fontSize: 13), // Perkecil font sedikit
+                      hintStyle: TextStyle(
+                        color: kTextGrey,
+                        fontSize: 13,
+                      ), // Perkecil font sedikit
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
                     ),
@@ -1507,13 +1588,11 @@ class _HeaderFullContent extends StatelessWidget {
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.all(8),
                   decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kBrandColor,
                   ),
-                  child: const Icon(
-                    Icons.search,
-                    color: kWhiteColor,
-                    size: 18, // Perkecil icon sedikit
+                  child: SvgPicture.asset(
+                    'assets/icons/search.svg', // Pastikan path ini sesuai dengan pubspec.yaml Anda
+                    width: 18,
+                    height: 18,
                   ),
                 ),
               ],
@@ -1532,7 +1611,7 @@ class _HeaderLogoOnly extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Image.asset(
           'assets/images/logo.png',
           width: 45,

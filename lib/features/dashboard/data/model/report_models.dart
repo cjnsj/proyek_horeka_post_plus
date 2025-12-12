@@ -11,14 +11,33 @@ class SalesReportModel {
     required this.transactions,
   });
 
-  factory SalesReportModel.fromJson(Map<String, dynamic> json) {
-    // Sesuaikan parsing dengan struktur JSON dari backend Anda
-    final summary = json['summary'] ?? {};
-    final data = json['data'] ?? [];
+  factory SalesReportModel.fromJson(dynamic json) {
+    List<dynamic> data = [];
+
+    // Logika Fleksibel: Menerima List langsung atau Object
+    if (json is List) {
+      data = json;
+    } else if (json is Map<String, dynamic>) {
+      // Backend Anda mengirim key 'data'
+      if (json.containsKey('data') && json['data'] is List) {
+        data = json['data'];
+      }
+    }
+
+    // Hitung Manual (Backup jika summary backend tidak sesuai harapan)
+    int total = 0;
+    for (var tx in data) {
+      if (tx is Map) {
+        // Backend field: total_amount
+        final rawAmount = tx['total_amount']?.toString() ?? '0';
+        final cleanAmount = rawAmount.replaceAll(RegExp(r'[^0-9]'), '');
+        total += int.tryParse(cleanAmount) ?? 0;
+      }
+    }
 
     return SalesReportModel(
-      totalSales: int.tryParse(summary['total_sales'].toString()) ?? 0,
-      transactionCount: int.tryParse(summary['transaction_count'].toString()) ?? 0,
+      totalSales: total,
+      transactionCount: data.length,
       transactions: data,
     );
   }
@@ -32,6 +51,7 @@ class ItemReportModel {
 
   factory ItemReportModel.fromJson(Map<String, dynamic> json) {
     return ItemReportModel(
+      // Backend mengirim { product_name: "...", quantity_sold: ... }
       productName: json['product_name'] ?? 'Unknown Item',
       quantitySold: int.tryParse(json['quantity_sold'].toString()) ?? 0,
     );
@@ -46,7 +66,7 @@ class ExpenseReportModel {
 
   factory ExpenseReportModel.fromJson(dynamic json) {
     List<dynamic> list = [];
-    // Handle jika backend mengirim List langsung atau Object {data: []}
+
     if (json is List) {
       list = json;
     } else if (json is Map && json.containsKey('data')) {
@@ -55,12 +75,11 @@ class ExpenseReportModel {
 
     int total = 0;
     for (var item in list) {
-      total += int.tryParse(item['amount'].toString()) ?? 0;
+      final rawAmount = item['amount']?.toString() ?? '0';
+      final cleanAmount = rawAmount.replaceAll(RegExp(r'[^0-9]'), '');
+      total += int.tryParse(cleanAmount) ?? 0;
     }
 
-    return ExpenseReportModel(
-      totalExpense: total,
-      expenses: list,
-    );
+    return ExpenseReportModel(totalExpense: total, expenses: list);
   }
 }

@@ -146,3 +146,12 @@ class ReportDateChanged extends DashboardEvent {
 // --- Tax & Payment Settings ---
 class FetchTaxSettingsRequested extends DashboardEvent {}
 class FetchPaymentMethodsRequested extends DashboardEvent {}
+
+// [TAMBAHKAN INI DI BAGIAN REPORT]
+class SelectReportTransaction extends DashboardEvent {
+  final Map<String, dynamic> transaction;
+  const SelectReportTransaction(this.transaction);
+  
+  @override
+  List<Object?> get props => [transaction];
+}
