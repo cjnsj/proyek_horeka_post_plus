@@ -25,9 +25,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<RemoveFromCart>(_onRemoveFromCart);
     on<ClearCart>(_onClearCart);
 
-    // --- Promo Code ---
-    on<ApplyPromoCode>(_onApplyPromoCode);
-    on<RemovePromoCode>(_onRemovePromoCode);
+    // --- Promo Code & Calculation ---
+    on<ApplyPromoCodeRequested>(_onApplyPromoCode);
+    on<RemovePromoCodeRequested>(_onRemovePromoCode);
+    on<CalculateTransactionRequested>(_onCalculateTransaction);
 
     // --- Transaction & Expense ---
     on<CreateTransactionRequested>(_onCreateTransactionRequested);
@@ -47,11 +48,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     // --- Report ---
     on<FetchAllReportsRequested>(_onFetchAllReportsRequested);
     on<ToggleReportVoidFilter>(_onToggleReportVoidFilter);
+    // [KODE YANG SEBELUMNYA HILANG - SUDAH DIKEMBALIKAN]
+    on<ReportDateChanged>(_onReportDateChanged);
 
-    // --- Tax Settings [BARU] ---
-    // Jangan lupa daftarkan handler ini!
+    // --- Tax Settings ---
     on<FetchTaxSettingsRequested>(_onFetchTaxSettings);
-   
+
+    // --- Payment Methods ---
+    on<FetchPaymentMethodsRequested>(_onFetchPaymentMethodsRequested);
   }
 
   // ================= SESSION HANDLERS =================
@@ -66,20 +70,20 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     final isSessionActive = prefs.getBool('dashboard_session_active') ?? false;
 
     if (isSessionActive) {
-      emit(state.copyWith(
-        status: DashboardStatus.success,
-        isPinEntered: true,
-        hasStartingBalance: true,
-      ));
-      
-      // Load Menu & Pajak secara bersamaan
+      emit(
+        state.copyWith(
+          status: DashboardStatus.success,
+          isPinEntered: true,
+          hasStartingBalance: true,
+        ),
+      );
+
       add(FetchMenuRequested());
-      add(FetchTaxSettingsRequested()); // [PENTING] Load pajak saat start
+      add(FetchTaxSettingsRequested()); 
     } else {
-      emit(state.copyWith(
-        status: DashboardStatus.success, 
-        isPinEntered: false,
-      ));
+      emit(
+        state.copyWith(status: DashboardStatus.success, isPinEntered: false),
+      );
     }
   }
 
@@ -126,21 +130,26 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         categoryNames.addAll(fallbackSet);
       }
 
-      final List<ProductModel> finalProducts =
-          productsList.map((e) => e as ProductModel).toList();
+      final List<ProductModel> finalProducts = productsList
+          .map((e) => e as ProductModel)
+          .toList();
 
-      emit(state.copyWith(
-        status: DashboardStatus.success,
-        products: finalProducts,
-        filteredProducts: finalProducts,
-        categories: categoryNames,
-        selectedCategory: 'Semua',
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.success,
+          products: finalProducts,
+          filteredProducts: finalProducts,
+          categories: categoryNames,
+          selectedCategory: 'Semua',
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -154,10 +163,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       filtered = state.products.where((p) => p.category == selected).toList();
     }
 
-    emit(state.copyWith(
-      selectedCategory: selected,
-      filteredProducts: filtered,
-    ));
+    emit(
+      state.copyWith(selectedCategory: selected, filteredProducts: filtered),
+    );
   }
 
   // ================= CART HANDLERS =================
@@ -176,8 +184,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       currentCart.add(CartItem(product: event.product));
     }
 
-    // Reset promo code saat cart berubah agar validasi ulang
-    emit(state.copyWith(cartItems: currentCart, clearPromo: true));
+    emit(state.copyWith(cartItems: currentCart));
+    add(CalculateTransactionRequested());
   }
 
   void _onRemoveFromCart(RemoveFromCart event, Emitter<DashboardState> emit) {
@@ -195,63 +203,80 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         currentCart.removeAt(index);
       }
 
-      // Reset promo code saat cart berubah
-      emit(state.copyWith(cartItems: currentCart, clearPromo: true));
+      emit(state.copyWith(cartItems: currentCart));
+      add(CalculateTransactionRequested());
     }
   }
 
   void _onClearCart(ClearCart event, Emitter<DashboardState> emit) {
-    emit(state.copyWith(
-      cartItems: [],
-      clearEditingQueue: true,
-      clearPromo: true, // Reset promo saat cart dibersihkan
-    ));
+    emit(
+      state.copyWith(
+        cartItems: [],
+        clearEditingQueue: true,
+        clearPromoCode: true,
+        subtotal: 0,
+        autoDiscount: 0,
+        manualDiscount: 0,
+        taxValue: 0,
+        finalTotalAmount: 0,
+        appliedPromos: [],
+      ),
+    );
   }
 
-  // ================= PROMO CODE HANDLERS =================
+  // ================= PROMO CODE & CALCULATION HANDLERS =================
 
-  Future<void> _onApplyPromoCode(
-    ApplyPromoCode event,
+  void _onApplyPromoCode(
+    ApplyPromoCodeRequested event,
+    Emitter<DashboardState> emit,
+  ) {
+    emit(state.copyWith(appliedPromoCode: event.promoCode));
+    add(CalculateTransactionRequested());
+  }
+
+  void _onRemovePromoCode(
+    RemovePromoCodeRequested event, 
+    Emitter<DashboardState> emit
+  ) {
+    emit(state.copyWith(clearPromoCode: true));
+    add(CalculateTransactionRequested());
+  }
+
+  Future<void> _onCalculateTransaction(
+    CalculateTransactionRequested event,
     Emitter<DashboardState> emit,
   ) async {
     if (state.cartItems.isEmpty) return;
 
-    emit(state.copyWith(status: DashboardStatus.loading));
-
     try {
-      final resultData = await repository.calculateDiscount(
+      final result = await repository.calculateTransaction(
         items: state.cartItems,
-        promoCode: event.promoCode,
+        promoCode: state.appliedPromoCode,
       );
 
-      final discountVal =
-          int.tryParse(resultData['total_discount'].toString()) ?? 0;
-
-      if (discountVal == 0) {
-        throw Exception(
-          "Kode valid, namun syarat transaksi belum terpenuhi (Diskon Rp 0).",
-        );
-      }
-
       emit(state.copyWith(
+        subtotal: result.subtotal,
+        autoDiscount: result.totalDiscount, 
+        manualDiscount: 0,
+        taxValue: result.totalTax,
+        finalTotalAmount: result.totalAmount,
+        appliedPromos: result.appliedPromos,
         status: DashboardStatus.success,
-        discountAmount: discountVal,
-        appliedPromoCode: event.promoCode,
       ));
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
-      emit(state.copyWith(status: DashboardStatus.success));
+      if (state.appliedPromoCode != null) {
+        emit(state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString().replaceAll("Exception: ", ""),
+          appliedPromoCode: null,
+          clearPromoCode: true,
+        ));
+        emit(state.copyWith(status: DashboardStatus.success, errorMessage: null));
+        add(CalculateTransactionRequested());
+      } else {
+        print("Error calculating: $e");
+      }
     }
-  }
-
-  void _onRemovePromoCode(
-    RemovePromoCode event, 
-    Emitter<DashboardState> emit,
-  ) {
-    emit(state.copyWith(clearPromo: true));
   }
 
   // ================= TRANSACTION & EXPENSE HANDLERS =================
@@ -285,20 +310,30 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         }
       }
 
-      emit(state.copyWith(
-        status: DashboardStatus.transactionSuccess,
-        cartItems: [],
-        clearEditingQueue: true,
-        clearPromo: true,
-        queueList: currentQueueList,
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.transactionSuccess,
+          cartItems: [],
+          clearEditingQueue: true,
+          clearPromoCode: true,
+          queueList: currentQueueList,
+          subtotal: 0,
+          autoDiscount: 0,
+          manualDiscount: 0,
+          taxValue: 0,
+          finalTotalAmount: 0,
+          appliedPromos: [],
+        ),
+      );
 
       emit(state.copyWith(status: DashboardStatus.success));
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
       emit(state.copyWith(status: DashboardStatus.success));
     }
   }
@@ -318,10 +353,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       emit(state.copyWith(status: DashboardStatus.expenseSuccess));
       emit(state.copyWith(status: DashboardStatus.success));
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
       emit(state.copyWith(status: DashboardStatus.success));
     }
   }
@@ -354,19 +391,29 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         );
       }
 
-      emit(state.copyWith(
-        status: DashboardStatus.queueSuccess,
-        cartItems: [],
-        clearEditingQueue: true,
-        clearPromo: true,
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.queueSuccess,
+          cartItems: [],
+          clearEditingQueue: true,
+          clearPromoCode: true,
+          subtotal: 0,
+          autoDiscount: 0,
+          manualDiscount: 0,
+          taxValue: 0,
+          finalTotalAmount: 0,
+          appliedPromos: [],
+        ),
+      );
 
       emit(state.copyWith(status: DashboardStatus.success));
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
       emit(state.copyWith(status: DashboardStatus.success));
     }
   }
@@ -379,10 +426,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final queues = await repository.getQueueList();
       emit(state.copyWith(status: DashboardStatus.success, queueList: queues));
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -391,11 +440,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) {
     final loadedItems = List<CartItem>.from(event.queue.items);
-    emit(state.copyWith(
-      cartItems: loadedItems,
-      editingQueue: event.queue,
-      clearPromo: true,
-    ));
+    emit(
+      state.copyWith(
+        cartItems: loadedItems,
+        editingQueue: event.queue,
+        clearPromoCode: true,
+      ),
+    );
+    add(CalculateTransactionRequested());
   }
 
   // ================= VOID MODE HANDLERS =================
@@ -407,16 +459,20 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(state.copyWith(status: DashboardStatus.loading));
     try {
       final transactions = await repository.getCurrentShiftTransactions();
-      emit(state.copyWith(
-        status: DashboardStatus.success,
-        transactionList: transactions,
-        selectedTransaction: null,
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.success,
+          transactionList: transactions,
+          selectedTransaction: null,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -433,18 +489,22 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       final updatedList = await repository.getCurrentShiftTransactions();
 
-      emit(state.copyWith(
-        status: DashboardStatus.transactionSuccess,
-        transactionList: updatedList,
-        selectedTransaction: null,
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.transactionSuccess,
+          transactionList: updatedList,
+          selectedTransaction: null,
+        ),
+      );
 
       emit(state.copyWith(status: DashboardStatus.success));
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
       emit(state.copyWith(status: DashboardStatus.success));
     }
   }
@@ -463,15 +523,19 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(state.copyWith(status: DashboardStatus.loading));
     try {
       final transactions = await repository.searchTransactions(event.query);
-      emit(state.copyWith(
-        status: DashboardStatus.success,
-        transactionList: transactions,
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.success,
+          transactionList: transactions,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -497,17 +561,21 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         repository.getExpenseReport(),
       ]);
 
-      emit(state.copyWith(
-        reportStatus: DashboardStatus.success,
-        salesReport: results[0] as SalesReportModel,
-        itemReport: results[1] as List<ItemReportModel>,
-        expenseReport: results[2] as ExpenseReportModel,
-      ));
+      emit(
+        state.copyWith(
+          reportStatus: DashboardStatus.success,
+          salesReport: results[0] as SalesReportModel,
+          itemReport: results[1] as List<ItemReportModel>,
+          expenseReport: results[2] as ExpenseReportModel,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        reportStatus: DashboardStatus.error,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          reportStatus: DashboardStatus.error,
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -518,6 +586,18 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(state.copyWith(isReportVoidFilter: event.isVoid));
   }
 
+  // [KODE YANG SEBELUMNYA HILANG - SUDAH DIKEMBALIKAN]
+  void _onReportDateChanged(
+    ReportDateChanged event,
+    Emitter<DashboardState> emit,
+  ) {
+    emit(state.copyWith(
+      reportStartDate: event.startDate,
+      reportEndDate: event.endDate,
+    ));
+    add(FetchAllReportsRequested());
+  }
+
   // ================= TAX SETTINGS HANDLERS [READ ONLY] =================
 
   Future<void> _onFetchTaxSettings(
@@ -526,19 +606,31 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     try {
       final data = await repository.getTaxSettings();
-      
-      // Backend return: { "tax_percentage": 11, "is_active": true, ... }
+
       final isActive = data['is_active'] ?? false;
       final percent = (data['tax_percentage'] ?? 0).toDouble();
 
-      emit(state.copyWith(
-        taxPercentage: isActive ? percent : 0.0,
-        taxName: data['tax_name'] ?? '',
-        isTaxActive: isActive,
-      ));
+      emit(
+        state.copyWith(
+          taxPercentage: isActive ? percent : 0.0,
+          taxName: data['tax_name'] ?? '',
+          isTaxActive: isActive,
+        ),
+      );
     } catch (e) {
       print("⚠️ Gagal load pajak: $e");
-      // Silent error agar tidak mengganggu kasir
+    }
+  }
+
+  Future<void> _onFetchPaymentMethodsRequested(
+    FetchPaymentMethodsRequested event,
+    Emitter<DashboardState> emit,
+  ) async {
+    try {
+      final methods = await repository.getPaymentMethods();
+      emit(state.copyWith(paymentMethods: methods));
+    } catch (e) {
+      print("Failed to load payment methods: $e");
     }
   }
 }

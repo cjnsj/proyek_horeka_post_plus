@@ -1206,3 +1206,4 @@ class _SalesDetailCard extends StatelessWidget {
     );
   }
 }
+

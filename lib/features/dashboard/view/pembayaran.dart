@@ -15,13 +15,22 @@ class PaymentPage extends StatefulWidget {
 
 class _PaymentPageState extends State<PaymentPage> {
   final TextEditingController _paymentController = TextEditingController();
-  String selectedPaymentMethod = 'Cash';
+  
+  String selectedPaymentMethodName = '';
+  String selectedPaymentMethodCode = '';
 
   final NumberFormat currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp.',
     decimalDigits: 0,
   );
+
+  @override
+  void initState() {
+    super.initState();
+    // Panggil API Payment Methods saat halaman dibuka
+    context.read<DashboardBloc>().add(FetchPaymentMethodsRequested());
+  }
 
   // --- LOGIKA NUMPAD ---
   void _onNumberPressed(String value) {
@@ -45,13 +54,24 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   // --- LOGIKA PROSES BAYAR ---
-  void _processPayment(BuildContext context, double totalAmount) {
-    if (selectedPaymentMethod == 'Cash') {
-      // Validasi Uang Tunai
+  void _processPayment(BuildContext context, int totalAmount) {
+    // 1. Validasi Metode Pembayaran
+    if (selectedPaymentMethodCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih metode pembayaran terlebih dahulu!'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // 2. Logic Pembayaran Tunai
+    if (selectedPaymentMethodCode == 'CASH') {
       final cleanAmount = _paymentController.text.replaceAll(RegExp(r'[^0-9]'), '');
       final inputCash = int.tryParse(cleanAmount) ?? 0;
 
-      // Cek apakah uang tunai kurang dari Total Tagihan (Final)
+      // Cek apakah uang tunai kurang
       if (inputCash < totalAmount) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -67,16 +87,9 @@ class _PaymentPageState extends State<PaymentPage> {
             const CreateTransactionRequested(paymentMethod: "CASH"),
           );
     } else {
-      // Kirim Event Transaksi Non-Tunai
-      String methodApi = selectedPaymentMethod.toUpperCase();
-      
-      // Mapping nama method dari UI ke API Backend
-      if (selectedPaymentMethod == 'Qris') methodApi = "QRIS";
-      if (selectedPaymentMethod == 'Debit/Credit') methodApi = "DEBIT";
-      if (selectedPaymentMethod == 'Cash + Debit/Credit') methodApi = "SPLIT"; // Sesuaikan jika ada logic split
-
+      // 3. Logic Pembayaran Non-Tunai (QRIS, DEBIT, dll)
       context.read<DashboardBloc>().add(
-            CreateTransactionRequested(paymentMethod: methodApi),
+            CreateTransactionRequested(paymentMethod: selectedPaymentMethodCode),
           );
     }
   }
@@ -152,7 +165,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
                 const SizedBox(height: 8),
 
-                // Total Amount
+                // Total Amount untuk QRIS
                 BlocBuilder<DashboardBloc, DashboardState>(
                   builder: (context, state) {
                     return Text(
@@ -235,6 +248,7 @@ class _PaymentPageState extends State<PaymentPage> {
   Widget build(BuildContext context) {
     return BlocConsumer<DashboardBloc, DashboardState>(
       listener: (context, state) {
+        // Handle Sukses
         if (state.status == DashboardStatus.transactionSuccess) {
            showDialog(
             context: context,
@@ -258,6 +272,7 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
           );
         }
+        // Handle Error
         if (state.status == DashboardStatus.error) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.errorMessage ?? 'Gagal'), backgroundColor: Colors.red),
@@ -265,11 +280,13 @@ class _PaymentPageState extends State<PaymentPage> {
         }
       },
       builder: (context, state) {
+        // [DATA DARI HOME PAGE / BLOC STATE]
+        // Kita mengambil data yang sudah dihitung oleh Server dan disimpan di State
         final cartItems = state.cartItems;
-        final totalAmount = state.totalAmount.toDouble(); 
-        final discount = state.discountAmount.toDouble(); 
+        final subtotal = state.subtotal;
         final tax = state.taxValue;      
-        final total = state.finalTotalAmount.toDouble();
+        final total = state.finalTotalAmount; // Total Akhir (Int)
+        final promos = state.appliedPromos;   // List Promo (Auto + Manual)
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -416,7 +433,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           ),
                         ),
 
-                        // MIDDLE: SUMMARY
+                        // MIDDLE: SUMMARY & PAYMENT METHOD
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.all(20),
@@ -428,13 +445,26 @@ class _PaymentPageState extends State<PaymentPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildSummaryRow('Subtotal', totalAmount),
+                                // [UPDATE] Tampilan Rincian Harga agar sama dengan Home Page
+                                _buildSummaryRow('Subtotal', subtotal.toDouble()),
                                 const SizedBox(height: 16),
 
-                                if (discount > 0) ...[
+                                // Loop Diskon (Combo)
+                                if (promos.isNotEmpty) ...[
+                                  ...promos.map((promo) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _buildSummaryRow(
+                                      promo.name,
+                                      promo.amount.toDouble(),
+                                      isNegative: true,
+                                      color: Colors.green,
+                                    ),
+                                  )),
+                                ] else if (state.discountAmount > 0) ...[
+                                  // Fallback support
                                   _buildSummaryRow(
-                                    'Discount (${state.appliedPromoCode ?? 'Promo'})',
-                                    discount,
+                                    'Discount',
+                                    state.discountAmount.toDouble(),
                                     isNegative: true,
                                     color: Colors.green,
                                   ),
@@ -445,35 +475,62 @@ class _PaymentPageState extends State<PaymentPage> {
                                   state.taxPercentage > 0 
                                       ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)'
                                       : 'Tax',
-                                  tax,
+                                  tax.toDouble(),
                                   isPositive: true,
+                                  color: Colors.red,
                                 ),
                                 const SizedBox(height: 16),
 
-                                _buildSummaryRow('Total', total, isBold: true),
+                                _buildSummaryRow('Total', total.toDouble(), isBold: true),
 
                                 const Spacer(flex: 12),
 
-                                Row(
-                                  children: [
-                                    Expanded(child: _buildPaymentMethodButton('Cash')),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: _buildPaymentMethodButton('Qris')),
-                                  ],
+                                // [MODIFIKASI] Bagian Render Button Dinamis (Fixed Layout 2x2)
+                                const Text(
+                                  "Metode Pembayaran",
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                                 ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(child: _buildPaymentMethodButton('Debit/Credit')),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: _buildPaymentMethodButton('Cash + Debit/Credit')),
-                                  ],
-                                ),
+                                const SizedBox(height: 10),
 
+                                if (state.paymentMethods.isEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: Text(
+                                      "Memuat metode...", 
+                                      style: TextStyle(color: Colors.grey, fontSize: 12)
+                                    ),
+                                  )
+                                else
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final double spacing = 12.0;
+                                      final double runSpacing = 12.0;
+                                      final int columns = 2;
+                                      final double itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+                                      return Wrap(
+                                        spacing: spacing,
+                                        runSpacing: runSpacing,
+                                        children: state.paymentMethods.map((method) {
+                                          return SizedBox(
+                                            width: itemWidth, 
+                                            child: _buildDynamicPaymentButton(
+                                              name: method.name,
+                                              code: method.code,
+                                              isActive: method.isActive,
+                                            ),
+                                          );
+                                        }).toList(),
+                                      );
+                                    },
+                                  ),
+                                  
                                 const Spacer(flex: 2),
 
                                 Text(
-                                  selectedPaymentMethod,
+                                  selectedPaymentMethodName.isEmpty 
+                                      ? 'Pilih Metode' 
+                                      : selectedPaymentMethodName,
                                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
                                 ),
                                 const SizedBox(height: 12),
@@ -577,32 +634,54 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  Widget _buildPaymentMethodButton(String method) {
-    final isSelected = selectedPaymentMethod == method;
+  // Widget Helper Baru untuk Tombol Dinamis
+  Widget _buildDynamicPaymentButton({required String name, required String code, required bool isActive}) {
+    // Cek seleksi berdasarkan CODE & Active Status
+    final isSelected = selectedPaymentMethodCode == code && isActive;
+    
+    // Warna Disabled
+    final backgroundColor = !isActive 
+        ? Colors.grey.shade100 
+        : (isSelected ? const Color(0xFFE57373) : Colors.white);
+
+    final borderColor = !isActive
+        ? Colors.grey.shade300
+        : (isSelected ? const Color(0xFFE57373) : Colors.grey.shade300);
+
+    final textColor = !isActive
+        ? Colors.grey.shade400
+        : (isSelected ? Colors.white : Colors.black87);
+
     return InkWell(
-      onTap: () {
-        setState(() {
-          selectedPaymentMethod = method;
-          _paymentController.clear();
-        });
-        if (method == 'Qris') {
-          _showQrisDialog();
-        }
-      },
+      onTap: !isActive 
+          ? null 
+          : () {
+              setState(() {
+                selectedPaymentMethodCode = code; 
+                selectedPaymentMethodName = name; 
+                _paymentController.clear();
+              });
+              
+              if (code == 'QRIS') {
+                _showQrisDialog();
+              }
+            },
       borderRadius: BorderRadius.circular(25),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE57373) : Colors.white,
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: isSelected ? const Color(0xFFE57373) : Colors.grey.shade300, width: 1),
+          border: Border.all(color: borderColor, width: 1),
         ),
-        child: Center(
-          child: Text(
-            method,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : Colors.black87),
-            textAlign: TextAlign.center,
-          ),
+        alignment: Alignment.center,
+        child: Text(
+          name,
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textColor),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );

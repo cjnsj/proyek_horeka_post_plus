@@ -9,57 +9,23 @@ abstract class DashboardEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-// ================= SESSION / LIFECYCLE =================
-
-// Event dipanggil saat Dashboard (HomePage) pertama kali dibuka
+// --- Session ---
 class DashboardStarted extends DashboardEvent {}
-
-// Event dipanggil setelah PIN dan Saldo Awal berhasil diinput
 class SaveDashboardSession extends DashboardEvent {}
 
-
-// ================= REPORT =================
-
-class FetchAllReportsRequested extends DashboardEvent {}
-
-class ReportDateChanged extends DashboardEvent {
-  final DateTime? startDate;
-  final DateTime? endDate;
-
-  const ReportDateChanged({this.startDate, this.endDate});
-
-  @override
-  List<Object?> get props => [startDate, endDate];
-}
-
-class ToggleReportVoidFilter extends DashboardEvent {
-  final bool isVoid;
-  const ToggleReportVoidFilter(this.isVoid);
-
-  @override
-  List<Object?> get props => [isVoid];
-}
-
-
-// ================= MENU =================
-
+// --- Menu ---
 class FetchMenuRequested extends DashboardEvent {}
-
 class SelectCategory extends DashboardEvent {
   final String category;
   const SelectCategory(this.category);
-
   @override
   List<Object?> get props => [category];
 }
 
-
-// ================= CART =================
-
+// --- Cart ---
 class AddToCart extends DashboardEvent {
   final ProductModel product;
   const AddToCart(this.product);
-
   @override
   List<Object?> get props => [product];
 }
@@ -67,44 +33,31 @@ class AddToCart extends DashboardEvent {
 class RemoveFromCart extends DashboardEvent {
   final ProductModel product;
   const RemoveFromCart(this.product);
-
   @override
   List<Object?> get props => [product];
 }
 
 class ClearCart extends DashboardEvent {}
 
-
-// ================= PROMO CODE =================
-
-class ApplyPromoCode extends DashboardEvent {
+// --- Promo Code & Calculation ---
+class ApplyPromoCodeRequested extends DashboardEvent {
   final String promoCode;
-  const ApplyPromoCode(this.promoCode);
-
+  const ApplyPromoCodeRequested(this.promoCode);
   @override
   List<Object?> get props => [promoCode];
 }
 
-class RemovePromoCode extends DashboardEvent {}
+class RemovePromoCodeRequested extends DashboardEvent {}
 
+class CalculateTransactionRequested extends DashboardEvent {}
 
-// ================= TRANSACTION =================
-
+// --- Transaction & Expense ---
 class CreateTransactionRequested extends DashboardEvent {
   final String paymentMethod;
-  final String? promoCode;
-
-  const CreateTransactionRequested({
-    required this.paymentMethod,
-    this.promoCode,
-  });
-
+  const CreateTransactionRequested({required this.paymentMethod});
   @override
-  List<Object?> get props => [paymentMethod, promoCode];
+  List<Object?> get props => [paymentMethod];
 }
-
-
-// ================= EXPENSE =================
 
 class CreateExpenseRequested extends DashboardEvent {
   final String description;
@@ -116,25 +69,21 @@ class CreateExpenseRequested extends DashboardEvent {
     required this.amount,
     this.imagePath,
   });
-
   @override
   List<Object?> get props => [description, amount, imagePath];
 }
 
-
-// ================= QUEUE =================
-
+// --- Queue ---
 class SaveQueueRequested extends DashboardEvent {
   final String tableNumber;
-  final String waiterName; // Sesuai input Anda (required)
-  final String orderNotes; // Sesuai input Anda (required)
+  final String? waiterName;
+  final String? orderNotes;
 
   const SaveQueueRequested({
     required this.tableNumber,
-    required this.waiterName,
-    required this.orderNotes,
+    this.waiterName,
+    this.orderNotes,
   });
-
   @override
   List<Object?> get props => [tableNumber, waiterName, orderNotes];
 }
@@ -144,33 +93,24 @@ class FetchQueueListRequested extends DashboardEvent {}
 class LoadQueueRequested extends DashboardEvent {
   final QueueModel queue;
   const LoadQueueRequested(this.queue);
-
   @override
   List<Object?> get props => [queue];
 }
 
-
-// ================= VOID MODE =================
-
+// --- Void Mode ---
 class FetchCurrentShiftTransactions extends DashboardEvent {}
 
 class RequestVoidTransaction extends DashboardEvent {
   final String transactionId;
   final String reason;
-
-  const RequestVoidTransaction({
-    required this.transactionId,
-    required this.reason,
-  });
-
+  const RequestVoidTransaction({required this.transactionId, required this.reason});
   @override
   List<Object?> get props => [transactionId, reason];
 }
 
 class SelectTransactionForVoid extends DashboardEvent {
-  final Map<String, dynamic>? transaction;
+  final Map<String, dynamic> transaction;
   const SelectTransactionForVoid(this.transaction);
-
   @override
   List<Object?> get props => [transaction];
 }
@@ -178,14 +118,31 @@ class SelectTransactionForVoid extends DashboardEvent {
 class SearchTransactionRequested extends DashboardEvent {
   final String query;
   const SearchTransactionRequested(this.query);
-
   @override
   List<Object?> get props => [query];
 }
 
+// --- Report ---
+class FetchAllReportsRequested extends DashboardEvent {}
 
-// ================= TAX SETTINGS [READ ONLY] =================
+class ToggleReportVoidFilter extends DashboardEvent {
+  final bool isVoid;
+  const ToggleReportVoidFilter(this.isVoid);
+  @override
+  List<Object?> get props => [isVoid];
+}
 
-// Hanya event ini yang dibutuhkan untuk memuat data pajak saat aplikasi mulai
+// [KODE YANG SEBELUMNYA HILANG - SUDAH DIKEMBALIKAN]
+class ReportDateChanged extends DashboardEvent {
+  final DateTime? startDate;
+  final DateTime? endDate;
+
+  const ReportDateChanged({this.startDate, this.endDate});
+
+  @override
+  List<Object?> get props => [startDate, endDate];
+}
+
+// --- Tax & Payment Settings ---
 class FetchTaxSettingsRequested extends DashboardEvent {}
-
+class FetchPaymentMethodsRequested extends DashboardEvent {}

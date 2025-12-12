@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:horeka_post_plus/features/dashboard/data/model/payment_method_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -648,10 +649,123 @@ class DashboardRepository {
       throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
-  
 
+  // 17. Ambil Metode Pembayaran (Dynamic Payment)
+  Future<List<PaymentMethodModel>> getPaymentMethods() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+      
+      final url = '${AppConstants.apiBaseUrl}/payment';
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => PaymentMethodModel.fromJson(json))
+            .toList();
+      } else {
+        return []; // Return kosong jika gagal, agar UI tidak error blokir
+      }
+    } catch (e) {
+      print("Error fetching payment methods: $e");
+      return [];
+    }
+  }
+
+  // 18. [BARU] Hitung Transaksi Lengkap (Server-Side Calculation)
+  // Digunakan oleh DashboardBloc untuk menghitung Subtotal, Diskon (Auto+Manual), dan Pajak
+  Future<TransactionCalculationModel> calculateTransaction({
+    required List<CartItem> items,
+    String? promoCode,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+      if (token == null) throw Exception('Token not found.');
+
+      final url = '${AppConstants.apiBaseUrl}/transaction/calculate';
+
+      final body = {
+        "items": items.map((e) => {
+          "product_id": e.product.productId, 
+          "quantity": e.quantity,
+          "item_note": e.note
+        }).toList(),
+        "promo_code": promoCode, // Kirim null jika tidak ada
+      };
+
+      print("🚀 [REPO] Calculating Transaction: $url");
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        return TransactionCalculationModel.fromJson(jsonResponse['data']);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? "Gagal menghitung transaksi");
+      }
+    } catch (e) {
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
 }
 
+// ================== MODEL CLASSSES UNTUK KALKULASI ==================
 
-  
+class TransactionCalculationModel {
+  final int subtotal;
+  final int totalDiscount;
+  final int totalTax;
+  final int totalAmount;
+  final List<AppliedPromo> appliedPromos;
 
+  TransactionCalculationModel({
+    required this.subtotal,
+    required this.totalDiscount,
+    required this.totalTax,
+    required this.totalAmount,
+    required this.appliedPromos,
+  });
+
+  factory TransactionCalculationModel.fromJson(Map<String, dynamic> json) {
+    return TransactionCalculationModel(
+      subtotal: int.parse(json['subtotal'] ?? "0"),
+      totalDiscount: int.parse(json['total_discount'] ?? "0"),
+      totalTax: int.parse(json['total_tax'] ?? "0"),
+      totalAmount: int.parse(json['total_amount'] ?? "0"),
+      appliedPromos: (json['applied_promos'] as List? ?? [])
+          .map((e) => AppliedPromo.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+class AppliedPromo {
+  final String name;
+  final int amount;
+
+  AppliedPromo({required this.name, required this.amount});
+
+  factory AppliedPromo.fromJson(Map<String, dynamic> json) {
+    return AppliedPromo(
+      name: json['discount_name'] ?? 'Diskon',
+      amount: int.parse(json['amount'] ?? "0"),
+    );
+  }
+}

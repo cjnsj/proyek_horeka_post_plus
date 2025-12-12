@@ -6,7 +6,7 @@ import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
 import 'package:horeka_post_plus/features/dashboard/data/queue_model.dart';
 import 'package:horeka_post_plus/features/dashboard/data/model/cart_model.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
-import 'package:horeka_post_plus/features/dashboard/view/pembayaran.dart'; // [BARU] Import PaymentPage
+// Note: Import PaymentPage dihapus karena kita tidak langsung ke sana lagi
 import 'package:intl/intl.dart';
 
 class QueueListPage extends StatefulWidget {
@@ -286,11 +286,9 @@ class _RightCartArea extends StatelessWidget {
     }
 
     final items = selectedQueue!.items;
-    int subtotal = items.fold(0, (sum, item) => sum + item.subtotal);
     
-    double discount = 0;
-    double tax = 0;
-    double total = subtotal - discount + tax;
+    // Hanya hitung total bersih dari items
+    int total = items.fold(0, (sum, item) => sum + item.subtotal);
 
     return Column(
       children: [
@@ -322,12 +320,9 @@ class _RightCartArea extends StatelessWidget {
           ),
         ),
 
-        // Summary & Buttons
+        // Summary Panel Hanya Total
         _SummaryPanel(
-          subtotal: subtotal.toDouble(),
-          discount: discount,
-          tax: tax,
-          total: total,
+          total: total.toDouble(),
         ),
         _BottomButtonsBar(selectedQueue: selectedQueue!),
       ],
@@ -406,16 +401,11 @@ class _QueueItemRow extends StatelessWidget {
   }
 }
 
+// Summary Panel Disederhanakan (Hanya Total)
 class _SummaryPanel extends StatelessWidget {
-  final double subtotal;
-  final double discount;
-  final double tax;
   final double total;
 
   const _SummaryPanel({
-    required this.subtotal,
-    required this.discount,
-    required this.tax,
     required this.total,
   });
 
@@ -430,12 +420,7 @@ class _SummaryPanel extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _summaryRow("Discount", "-${formatter.format(discount)}"),
-          const SizedBox(height: 8),
-          _summaryRow("Subtotal", formatter.format(subtotal)),
-          const SizedBox(height: 8),
-          _summaryRow("Tax", "+${formatter.format(tax)}"),
-          const SizedBox(height: 8),
+          // Hanya Menampilkan Total
           _summaryRow("Total", formatter.format(total), isTotal: true),
         ],
       ),
@@ -527,19 +512,24 @@ class _BottomButtonsBar extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                // [MODIFIKASI] Navigasi Langsung ke Halaman Pembayaran
+                // [MODIFIKASI] Tombol Pay Now sekarang kembali ke Dashboard
                 onPressed: () {
                   // 1. Load data antrian ke State Cart (Bloc)
+                  // Ini akan memperbarui keranjang di Dashboard
                   context.read<DashboardBloc>().add(
                         LoadQueueRequested(selectedQueue),
                       );
                   
-                  // 2. Pindah Halaman: Ganti QueueList dengan PaymentPage
-                  // Menggunakan pushReplacement agar user tidak kembali ke list antrian saat back
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PaymentPage(),
+                  // 2. Kembali ke halaman Dashboard (Pop/Tutup QueueList)
+                  // Data otomatis terlihat karena DashboardBloc terupdate
+                  Navigator.of(context).pop();
+
+                  // 3. Opsional: Beri notifikasi kecil
+                   ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Antrian dimuat ke Dashboard. Silakan lanjutkan pembayaran.'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 1),
                     ),
                   );
                 },

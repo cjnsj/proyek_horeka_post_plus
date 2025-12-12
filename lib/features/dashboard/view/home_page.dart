@@ -1031,11 +1031,13 @@ class _SummaryColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
-        final subtotal = state.totalAmount;
-        final discount = state.discountAmount; // Ambil nilai diskon dari State
-        final total = state.finalTotalAmount;  // Ambil total akhir (Subtotal - Diskon)
-        final tax = state.taxValue;            // [BARU] Pajak Real dari State
-      
+        // Ambil data langsung dari hasil hitungan server di State
+        final subtotal = state.subtotal; 
+        final tax = state.taxValue;
+        final total = state.finalTotalAmount;
+        
+        // List promo yang didapat dari server (Gabungan Auto & Manual)
+        final promos = state.appliedPromos; 
 
         final formatter = NumberFormat.currency(
           locale: 'id_ID',
@@ -1052,35 +1054,42 @@ class _SummaryColumn extends StatelessWidget {
               value: formatter.format(subtotal)
             ),
             
-            // 2. Diskon (Hanya muncul jika nilai diskon > 0)
-            if (discount > 0)
-              _SummaryRow(
-                label: 'Discount (${state.appliedPromoCode ?? 'Promo'})',
-                value: '- ${formatter.format(discount)}', // Tanda minus agar jelas
-                textColor: Colors.green, // Warna hijau agar menonjol
-              )
-            else
-              // Opsional: Jika ingin tetap menampilkan baris diskon meski 0
-              const _SummaryRow(
+            // 2. LOOPING DISKON DARI SERVER
+            // Ini akan menampilkan "Diskon Wkwkwk", "Promo HEMAT", dll secara terpisah
+            if (promos.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              ...promos.map((promo) => _SummaryRow(
+                label: 'Discount (${promo.name})',// Nama Diskon (misal: "Disc Otomatis")
+                value: '- ${formatter.format(promo.amount)}',
+                textColor: Colors.green, // Hijau biar kelihatan untung
+              )),
+            ] else if (state.discountAmount > 0) ...[
+               // Fallback jika appliedPromos kosong tapi ada nilai diskon (backward compatibility)
+               _SummaryRow(
                 label: 'Discount', 
-                value: 'Rp 0', 
-                textColor: kTextGrey
+                value: '- ${formatter.format(state.discountAmount)}',
+                textColor: Colors.green,
               ),
+            ],
 
-            // 3. [UPDATE] Tax (Pajak) - Menggunakan Data Real
+            // 3. Tax (Pajak)
+            const SizedBox(height: 4),
             _SummaryRow(
-              // Jika ada pajak > 0%, tampilkan labelnya, misal: "Tax (11%)"
               label: state.taxPercentage > 0 
                   ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)' 
                   : 'Tax',
-              value: formatter.format(tax), 
+              value: '+ ${formatter.format(tax)}', 
+              textColor: Colors.red,
             ),
 
+            const SizedBox(height: 8),
+            const Divider(color: kBorderColor),
+            const SizedBox(height: 8),
             
             // 4. Total Akhir
             _SummaryRow(
               label: 'Total',
-              value: formatter.format(total), // Total yang sudah dikurangi diskon
+              value: formatter.format(total),
               isBold: true,
             ),
           ],
@@ -1129,6 +1138,7 @@ class _PromoCodeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
+        // Cek apakah ada promo manual yang sedang dipakai
         final hasPromo = state.appliedPromoCode != null;
         final activeColor = Colors.green;
 
@@ -1147,13 +1157,13 @@ class _PromoCodeButton extends StatelessWidget {
             ),
             onPressed: () {
               if (hasPromo) {
-                // Hapus promo
-                context.read<DashboardBloc>().add(RemovePromoCode());
+                // Hapus promo (Panggil Event RemovePromoCodeRequested)
+                context.read<DashboardBloc>().add(RemovePromoCodeRequested());
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("Kode promo dihapus")),
                 );
               } else {
-                // Input promo (Panggil Dialog Baru)
+                // Input promo
                 _showPromoInput(context);
               }
             },
@@ -1189,17 +1199,16 @@ class _PromoCodeButton extends StatelessWidget {
     );
   }
 
-  // [UPDATE] Menggunakan PromoCodeDialog yang baru
   void _showPromoInput(BuildContext context) {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: kBrandColor.withOpacity(0.5), // Efek overlay sesuai style app
+      barrierColor: kBrandColor.withOpacity(0.5),
       builder: (ctx) {
         return PromoCodeDialog(
           onApplyPromo: (code) {
-            // Panggil Bloc saat tombol Enter ditekan
-            context.read<DashboardBloc>().add(ApplyPromoCode(code));
+            // [PENTING] Gunakan event ApplyPromoCodeRequested agar triggernya ke server
+            context.read<DashboardBloc>().add(ApplyPromoCodeRequested(code));
           },
         );
       },
