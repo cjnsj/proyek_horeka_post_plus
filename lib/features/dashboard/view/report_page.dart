@@ -1199,7 +1199,7 @@ class _SalesDetailCard extends StatelessWidget {
   Widget _buildDetailContent(Map<String, dynamic> tx, NumberFormat currency) {
     // Parsing Data Aman
     final receiptNo = tx['receipt_number'] ?? '-';
-    final cashierName = tx['user']?['full_name'] ?? tx['shift']?['cashier']?['full_name'] ?? 'Unknown';
+
     final paymentMethod = tx['payment_method'] ?? 'CASH';
     
     String dateStr = '-';
@@ -1234,8 +1234,6 @@ class _SalesDetailCard extends StatelessWidget {
               _detailHeaderRow("Receipt No", receiptNo, isBold: true),
               const SizedBox(height: 8),
               _detailHeaderRow("Date", dateStr),
-              const SizedBox(height: 8),
-              _detailHeaderRow("Cashier", cashierName),
               const SizedBox(height: 8),
               _detailHeaderRow("Payment", paymentMethod),
             ],

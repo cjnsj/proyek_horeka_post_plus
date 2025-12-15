@@ -155,3 +155,15 @@ class SelectReportTransaction extends DashboardEvent {
   @override
   List<Object?> get props => [transaction];
 }
+
+// [TAMBAHAN] Event untuk mereset pilihan transaksi laporan
+class ResetReportSelection extends DashboardEvent {}
+
+
+// Tambahkan di paling bawah atau di grup Menu
+class SearchMenuChanged extends DashboardEvent {
+  final String query;
+  const SearchMenuChanged(this.query);
+  @override
+  List<Object?> get props => [query];
+}

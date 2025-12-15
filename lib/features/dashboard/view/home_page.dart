@@ -215,7 +215,6 @@ class _HomePageState extends State<HomePage> {
               final bool isLoading = isAuthLoading || isDashLoading;
 
               // PRINT DEBUG UI SETIAP KALI REBUILD
-              // Perhatikan log ini di console!
               print(
                 "🎨 [BUILD UI] ------------------------------------------------",
               );
@@ -273,10 +272,58 @@ class _HomePageState extends State<HomePage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
+                                      // [MODIFIKASI] Logic Refresh & Reset State
                                       _SideMenu(
                                         index: _index,
-                                        onTap: (i) =>
-                                            setState(() => _index = i),
+                                        onTap: (i) {
+                                          setState(() => _index = i);
+
+                                          // REFRESH LOGIC
+                                          final dashboardBloc = context
+                                              .read<DashboardBloc>();
+
+                                          if (i == 0) {
+                                            // Halaman Home: Reset Cart, Refresh Menu & Pajak
+                                            print(
+                                              "🔄 Refreshing Home Data (Clear Cart & Fetch Menu)...",
+                                            );
+
+                                            // [LOGIKA 1] Kosongkan Keranjang saat kembali ke Home
+                                            dashboardBloc.add(ClearCart());
+
+                                            dashboardBloc.add(
+                                              FetchMenuRequested(),
+                                            );
+                                            dashboardBloc.add(
+                                              FetchTaxSettingsRequested(),
+                                            );
+                                          } else if (i == 1) {
+                                            // Halaman Report: Refresh Laporan & Reset Detail Pilihan
+                                            print(
+                                              "🔄 Refreshing Reports Data & Reset Selection...",
+                                            );
+
+                                            // [LOGIKA 2] Reset Pilihan Laporan agar kembali bersih (Please select...)
+                                            dashboardBloc.add(
+                                              ResetReportSelection(),
+                                            );
+
+                                            dashboardBloc.add(
+                                              FetchAllReportsRequested(),
+                                            );
+                                          } else if (i == 2) {
+                                            // Halaman Settings: Refresh Setting
+                                            print(
+                                              "🔄 Refreshing Settings Data...",
+                                            );
+                                            dashboardBloc.add(
+                                              FetchTaxSettingsRequested(),
+                                            );
+                                            dashboardBloc.add(
+                                              FetchPaymentMethodsRequested(),
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(width: 16),
                                       if (_index == 0)
@@ -295,18 +342,13 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                   // [OVERLAY LOADING]
-                  // Jika isLoading == true, widget ini muncul menutupi layar -> Klik tidak tembus
-                  // [OVERLAY LOADING: HANYA SPINNER]
                   if (isLoading)
                     Stack(
                       children: [
-                        // Tembok transparan (tetap ada agar layar tidak bisa diklik)
                         const ModalBarrier(
                           dismissible: false,
                           color: Colors.black38,
                         ),
-
-                        // Spinner langsung di tengah tanpa kotak putih
                         const Center(
                           child: CircularProgressIndicator(color: kBrandColor),
                         ),
@@ -445,7 +487,7 @@ class _ProductAreaCombined extends StatelessWidget {
                                   decoration: const BoxDecoration(
                                     color: Colors.grey,
                                     borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(12),
+                                      top: Radius.circular(2),
                                     ),
                                   ),
                                 )
@@ -684,7 +726,7 @@ class _BottomActionsBar extends StatelessWidget {
                 ).push(MaterialPageRoute(builder: (_) => const VoidModePage()));
               },
             ),
-            const SizedBox(width: 22),
+            const SizedBox(width: 20),
             _BottomButton(
               label: 'Print Receipt',
               onPressed: () {
@@ -693,7 +735,7 @@ class _BottomActionsBar extends StatelessWidget {
                 );
               },
             ),
-            const SizedBox(width: 22),
+            const SizedBox(width: 20),
             _BottomButton(
               label: 'Expense',
               onPressed: () {
@@ -724,7 +766,7 @@ class _BottomActionsBar extends StatelessWidget {
                 );
               },
             ),
-            const SizedBox(width: 22),
+            const SizedBox(width: 20),
             _BottomButton(
               label: 'Queue List',
               onPressed: () {
@@ -749,7 +791,7 @@ class _BottomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 158,
+      width: 160,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: kWhiteColor,
@@ -780,7 +822,7 @@ class _CartAreaFullScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: Container(
-        margin: const EdgeInsets.only(right: 24, top: 8, bottom: 5),
+        margin: const EdgeInsets.only(right: 24, top: 8, bottom: 6),
         decoration: BoxDecoration(
           color: kWhiteColor,
           borderRadius: BorderRadius.circular(12),
@@ -804,7 +846,7 @@ class _CartHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 80,
+      height: 73,
       decoration: const BoxDecoration(
         color: kWhiteColor,
         borderRadius: BorderRadius.only(
@@ -839,7 +881,6 @@ class _CartHeader extends StatelessWidget {
   }
 }
 
-// --- BAGIAN INI YANG DIUBAH (SMART SAVE QUEUE) ---
 class _CartContent extends StatelessWidget {
   const _CartContent();
 
@@ -1122,7 +1163,6 @@ class _SummaryColumn extends StatelessWidget {
             _SummaryRow(label: 'Subtotal', value: formatter.format(subtotal)),
 
             // 2. LOOPING DISKON DARI SERVER
-            // Ini akan menampilkan "Diskon Wkwkwk", "Promo HEMAT", dll secara terpisah
             if (promos.isNotEmpty) ...[
               const SizedBox(height: 4),
               ...promos.map(
@@ -1151,8 +1191,6 @@ class _SummaryColumn extends StatelessWidget {
               value: '+ ${formatter.format(tax)}',
               textColor: Colors.red,
             ),
-
-            const SizedBox(height: 8),
 
             // 4. Total Akhir
             _SummaryRow(
@@ -1320,7 +1358,6 @@ class _SideMenu extends StatelessWidget {
                   'assets/icons/print.svg',
                   height: 28,
                   width: 28,
-
                   // Opsional: Beri warna jika sedang aktif (index == 0)
                 ),
               ),
@@ -1529,7 +1566,7 @@ class _HeaderFullContent extends StatelessWidget {
         children: [
           // Logo
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Image.asset(
               'assets/images/logo.png',
               width: 45,
@@ -1539,7 +1576,7 @@ class _HeaderFullContent extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          // Judul (Bungkus Flexible agar bisa mengecil jika sempit)
+          // Judul
           const Flexible(
             child: Text(
               'Horeka Pos+',
@@ -1553,13 +1590,12 @@ class _HeaderFullContent extends StatelessWidget {
             ),
           ),
 
-          const Spacer(), // Pemisah fleksibel
           const Spacer(),
           const Spacer(),
+          const Spacer(),
+
           // Search Bar
-          // [PERBAIKAN] Ubah Flexible ke Expanded atau sesuaikan constraints
           Container(
-            // Hapus minWidth: 200 agar tidak overflow di layar kecil
             constraints: const BoxConstraints(maxWidth: 260),
             height: 48,
             decoration: BoxDecoration(
@@ -1570,15 +1606,23 @@ class _HeaderFullContent extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 16),
-                const Expanded(
+                Expanded(
                   child: TextField(
-                    decoration: InputDecoration(
+                    // [LOGIC PENCARIAN]
+                    onChanged: (value) {
+                      context.read<DashboardBloc>().add(
+                        SearchMenuChanged(value),
+                      );
+                    },
+                    // [UBAH WARNA TEKS INPUT DISINI]
+                    style: const TextStyle(
+                      color: Colors.black, // Warna teks jadi hitam
+                      fontSize: 14, // Ukuran font (opsional)
+                    ),
+                    decoration: const InputDecoration(
                       border: InputBorder.none,
-                      hintText: 'Find menu',
-                      hintStyle: TextStyle(
-                        color: kTextGrey,
-                        fontSize: 13,
-                      ), // Perkecil font sedikit
+                      hintText: 'Find menu ',
+                      hintStyle: TextStyle(color: kTextGrey, fontSize: 13),
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
                     ),
@@ -1587,10 +1631,9 @@ class _HeaderFullContent extends StatelessWidget {
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                  ),
+
                   child: SvgPicture.asset(
-                    'assets/icons/search.svg', // Pastikan path ini sesuai dengan pubspec.yaml Anda
+                    'assets/icons/search.svg',
                     width: 18,
                     height: 18,
                   ),

@@ -12,11 +12,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final DashboardRepository repository;
 
   // [PERBAIKAN] Inisialisasi state dengan tanggal hari ini agar tidak null
-  DashboardBloc({required this.repository}) 
-      : super(DashboardState(
+  DashboardBloc({required this.repository})
+    : super(
+        DashboardState(
           reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
           reportEndDate: DateTime.now(),
-        )) {
+        ),
+      ) {
     // --- Session / Lifecycle ---
     on<DashboardStarted>(_onDashboardStarted);
     on<SaveDashboardSession>(_onSaveDashboardSession);
@@ -24,6 +26,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     // --- Menu & Category ---
     on<FetchMenuRequested>(_onFetchMenuRequested);
     on<SelectCategory>(_onSelectCategory);
+    on<SearchMenuChanged>(_onSearchMenuChanged); // [PENTING: INI YANG KURANG TADI]
 
     // --- Cart ---
     on<AddToCart>(_onAddToCart);
@@ -63,7 +66,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<FetchPaymentMethodsRequested>(_onFetchPaymentMethodsRequested);
 
     // Di dalam Constructor DashboardBloc:
-  on<SelectReportTransaction>(_onSelectReportTransaction);
+    on<SelectReportTransaction>(_onSelectReportTransaction);
+
+    // Di dalam Constructor:
+    on<ResetReportSelection>(_onResetReportSelection);
   }
 
   // ================= SESSION HANDLERS =================
@@ -87,7 +93,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       );
 
       add(FetchMenuRequested());
-      add(FetchTaxSettingsRequested()); 
+      add(FetchTaxSettingsRequested());
     } else {
       emit(
         state.copyWith(status: DashboardStatus.success, isPinEntered: false),
@@ -243,8 +249,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   }
 
   void _onRemovePromoCode(
-    RemovePromoCodeRequested event, 
-    Emitter<DashboardState> emit
+    RemovePromoCodeRequested event,
+    Emitter<DashboardState> emit,
   ) {
     emit(state.copyWith(clearPromoCode: true));
     add(CalculateTransactionRequested());
@@ -262,24 +268,30 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         promoCode: state.appliedPromoCode,
       );
 
-      emit(state.copyWith(
-        subtotal: result.subtotal,
-        autoDiscount: result.totalDiscount, 
-        manualDiscount: 0,
-        taxValue: result.totalTax,
-        finalTotalAmount: result.totalAmount,
-        appliedPromos: result.appliedPromos,
-        status: DashboardStatus.success,
-      ));
+      emit(
+        state.copyWith(
+          subtotal: result.subtotal,
+          autoDiscount: result.totalDiscount,
+          manualDiscount: 0,
+          taxValue: result.totalTax,
+          finalTotalAmount: result.totalAmount,
+          appliedPromos: result.appliedPromos,
+          status: DashboardStatus.success,
+        ),
+      );
     } catch (e) {
       if (state.appliedPromoCode != null) {
-        emit(state.copyWith(
-          status: DashboardStatus.error,
-          errorMessage: e.toString().replaceAll("Exception: ", ""),
-          appliedPromoCode: null,
-          clearPromoCode: true,
-        ));
-        emit(state.copyWith(status: DashboardStatus.success, errorMessage: null));
+        emit(
+          state.copyWith(
+            status: DashboardStatus.error,
+            errorMessage: e.toString().replaceAll("Exception: ", ""),
+            appliedPromoCode: null,
+            clearPromoCode: true,
+          ),
+        );
+        emit(
+          state.copyWith(status: DashboardStatus.success, errorMessage: null),
+        );
         add(CalculateTransactionRequested());
       } else {
         print("Error calculating: $e");
@@ -574,7 +586,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // [DEBUG] Cek Data Masuk
       // (Opsional: Anda bisa tambahkan print di sini untuk debug)
-      
+
       emit(
         state.copyWith(
           reportStatus: DashboardStatus.success,
@@ -604,10 +616,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     ReportDateChanged event,
     Emitter<DashboardState> emit,
   ) {
-    emit(state.copyWith(
-      reportStartDate: event.startDate,
-      reportEndDate: event.endDate,
-    ));
+    emit(
+      state.copyWith(
+        reportStartDate: event.startDate,
+        reportEndDate: event.endDate,
+      ),
+    );
     // Trigger ulang fetch data dengan tanggal baru
     add(FetchAllReportsRequested());
   }
@@ -654,5 +668,40 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) {
     emit(state.copyWith(selectedReportTransaction: event.transaction));
+  }
+
+  // [TAMBAHAN] Method Handler
+  void _onResetReportSelection(
+    ResetReportSelection event,
+    Emitter<DashboardState> emit,
+  ) {
+    // Set selectedReportTransaction menjadi null agar UI kembali ke placeholder
+    emit(state.copyWith(selectedReportTransaction: null));
+  }
+
+  void _onSearchMenuChanged(
+    SearchMenuChanged event,
+    Emitter<DashboardState> emit,
+  ) {
+    final query = event.query.toLowerCase();
+    final category = state.selectedCategory;
+
+    // 1. Ambil list dasar berdasarkan kategori saat ini
+    List<ProductModel> baseList;
+    if (category == 'Semua') {
+      baseList = state.products;
+    } else {
+      baseList = state.products.where((p) => p.category == category).toList();
+    }
+
+    // 2. Filter berdasarkan teks pencarian
+    if (query.isEmpty) {
+      emit(state.copyWith(filteredProducts: baseList));
+    } else {
+      final filtered = baseList.where((p) {
+        return p.name.toLowerCase().contains(query);
+      }).toList();
+      emit(state.copyWith(filteredProducts: filtered));
+    }
   }
 }

@@ -24,6 +24,8 @@ class _VoidModePageState extends State<VoidModePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackgroundColor,
+      // [PERBAIKAN] Tambahkan ini agar background tidak gerak saat keyboard muncul
+      resizeToAvoidBottomInset: false, 
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -211,8 +213,8 @@ class _TransactionItem extends StatelessWidget {
       child: InkWell(
         onTap: () {
           context.read<DashboardBloc>().add(
-            SelectTransactionForVoid(transaction),
-          );
+                SelectTransactionForVoid(transaction),
+              );
         },
         child: SizedBox(
           height: 72,
@@ -293,11 +295,11 @@ class _TransactionItem extends StatelessWidget {
                     if (!isVoided && !isRequested)
                       InkWell(
                         onTap: () {
-                          // [UPDATE] Tampilkan Dialog dengan Barrier Ungu
+                          // Tampilkan Dialog dengan Barrier Ungu
                           showDialog(
                             context: context,
                             barrierDismissible: false, // Tidak bisa klik luar
-                            barrierColor: const Color(0xFF5E5CE6).withOpacity(0.5), // Warna Ungu Transparan
+                            barrierColor: kBrandColor.withOpacity(0.5), // Warna Ungu Transparan
                             builder: (_) => BlocProvider.value(
                               value: context.read<DashboardBloc>(), // Teruskan BLoC
                               child: _VoidRequestDialog(
@@ -482,8 +484,8 @@ class _RightCartPreview extends StatelessWidget {
               color: isVoided
                   ? const Color(0xFFFFF0F0)
                   : (isRequested
-                        ? const Color(0xFFFFF8E1)
-                        : Colors.grey.shade50),
+                      ? const Color(0xFFFFF8E1)
+                      : Colors.grey.shade50),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -552,7 +554,7 @@ class _RightCartPreview extends StatelessWidget {
   }
 }
 
-// ================== DIALOG REQUEST VOID (DESAIN CUSTOM) ==================
+// ================== DIALOG REQUEST VOID (FIXED OVERFLOW) ==================
 
 class _VoidRequestDialog extends StatefulWidget {
   final String transactionId;
@@ -590,150 +592,154 @@ class _VoidRequestDialogState extends State<_VoidRequestDialog> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title
-            const Text(
-              'Could you request deletion from the administrator?',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-                height: 1.4,
+        // Bungkus konten dengan SingleChildScrollView
+        // agar tidak error "Bottom overflowed" saat keyboard muncul
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title
+              const Text(
+                'Could you request deletion from the administrator?',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                  height: 1.4,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Subtitle
-            Text(
-              'Please enter cancellation notes for the transaction ${widget.receiptNumber} !',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black87,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Text Field
-            TextField(
-              controller: _notesController,
-              maxLines: 5,
-              keyboardType: TextInputType.multiline,
-              style: const TextStyle(color: Colors.black87),
-              decoration: InputDecoration(
-                hintText: 'Enter the notes',
-                hintStyle: TextStyle(
-                  color: Colors.grey[400],
+              // Subtitle
+              Text(
+                'Please enter cancellation notes for the transaction ${widget.receiptNumber} !',
+                style: const TextStyle(
                   fontSize: 14,
+                  color: Colors.black87,
+                  height: 1.4,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: Color(0xFF5E5CE6),
-                    width: 2,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.all(16),
-                filled: true,
-                fillColor: Colors.white,
               ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[600],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
+              // Text Field
+              TextField(
+                controller: _notesController,
+                maxLines: 5,
+                keyboardType: TextInputType.multiline,
+                style: const TextStyle(color: Colors.black87),
+                decoration: InputDecoration(
+                  hintText: 'Enter the notes',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF5E5CE6),
+                      width: 2,
                     ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final notes = _notesController.text.trim();
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final notes = _notesController.text.trim();
 
-                      if (notes.isEmpty) {
+                        if (notes.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter cancellation notes!'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Send Request Event
+                        context.read<DashboardBloc>().add(
+                              RequestVoidTransaction(
+                                transactionId: widget.transactionId,
+                                reason: notes,
+                              ),
+                            );
+
+                        Navigator.of(context).pop();
+
+                        // Tampilkan feedback
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter cancellation notes!'),
-                            backgroundColor: Colors.red,
+                          SnackBar(
+                            content: Text(
+                              'Void request sent for ${widget.receiptNumber}',
+                            ),
+                            backgroundColor: Colors.green,
                           ),
                         );
-                        return;
-                      }
-
-                      // Send Request Event
-                      context.read<DashboardBloc>().add(
-                        RequestVoidTransaction(
-                          transactionId: widget.transactionId,
-                          reason: notes,
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF5E5CE6),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      );
-
-                      Navigator.of(context).pop();
-
-                      // Tampilkan feedback
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Void request sent for ${widget.receiptNumber}',
-                          ),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5E5CE6),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        elevation: 0,
                       ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'OK',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                      child: const Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
