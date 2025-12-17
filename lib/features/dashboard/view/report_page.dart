@@ -60,12 +60,12 @@ class _LogoCard extends StatelessWidget {
       height: 80,
       decoration: BoxDecoration(
         color: kWhiteColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: kCardShadow,
       ),
       padding: const EdgeInsets.all(17.5),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Image.asset(
           'assets/images/logo.png',
           width: 45,
@@ -104,7 +104,7 @@ class _ReportContentAreaState extends State<_ReportContentArea> {
           left: 12,
           top: 24,
           bottom: 24,
-          right: _tabIndex == 0 ? 420 : 24,
+          right: _tabIndex == 0 ? 426 : 24,
           child: _SalesReportCard(
             tabIndex: _tabIndex,
             onTabChanged: (i) => setState(() => _tabIndex = i),
@@ -136,7 +136,7 @@ class _SalesReportCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: kWhiteColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: kCardShadow,
       ),
       child: Column(
@@ -147,7 +147,7 @@ class _SalesReportCard extends StatelessWidget {
             height: 60,
             decoration: const BoxDecoration(
               color: kBrandColor,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Align(
               alignment: Alignment.bottomLeft,
@@ -210,7 +210,7 @@ class _ReportTab extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       decoration: BoxDecoration(
         color: isActive ? kWhiteColor : Colors.transparent,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Text(
         label,
@@ -409,7 +409,7 @@ class _SalesReportContent extends StatelessWidget {
               height: 70,
               decoration: const BoxDecoration(
                 borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(18),
+                  bottom: Radius.circular(12),
                 ),
               ),
               child: Row(
@@ -735,7 +735,7 @@ class _ItemReportContent extends StatelessWidget {
                           vertical: 0,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       onPressed: () {},
@@ -980,7 +980,7 @@ class _ExpenditureReportContent extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 26, vertical: 0),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       onPressed: () {},
@@ -1019,7 +1019,7 @@ class _DateFilterColumn extends StatelessWidget {
           height: 40,
           decoration: BoxDecoration(
             color: kWhiteColor,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: kBorderColor),
           ),
           alignment: Alignment.center,
@@ -1091,7 +1091,7 @@ class _PrintSalesReportButton extends StatelessWidget {
             backgroundColor: kBrandColor,
             foregroundColor: kWhiteColor,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
           onPressed: () {},
@@ -1122,7 +1122,7 @@ class _SalesDetailCard extends StatelessWidget {
         return Container(
           decoration: BoxDecoration(
             color: kWhiteColor,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: kCardShadow,
           ),
           child: Column(
@@ -1131,9 +1131,10 @@ class _SalesDetailCard extends StatelessWidget {
               Container(
                 height: 52,
                 decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                  
                   border: Border(bottom: BorderSide(color: kBorderColor, width: 1)),
-                ),
+                ),  
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 alignment: Alignment.centerLeft,
                 child: const Text(
@@ -1165,7 +1166,7 @@ class _SalesDetailCard extends StatelessWidget {
               Container(
                 height: 70,
                 decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
                   border: Border(top: BorderSide(color: kBorderColor, width: 1)),
                 ),
                 alignment: Alignment.centerRight,
@@ -1178,7 +1179,7 @@ class _SalesDetailCard extends StatelessWidget {
                       backgroundColor: kBrandColor,
                       foregroundColor: kWhiteColor,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     onPressed: tx == null ? null : () {

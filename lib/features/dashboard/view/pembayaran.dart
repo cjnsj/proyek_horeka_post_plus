@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart'; // [IMPORT WAJIB] Untuk TextInputFormatter
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
@@ -15,47 +16,57 @@ class PaymentPage extends StatefulWidget {
 
 class _PaymentPageState extends State<PaymentPage> {
   final TextEditingController _paymentController = TextEditingController();
-  
+
   String selectedPaymentMethodName = '';
   String selectedPaymentMethodCode = '';
 
   final NumberFormat currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
-    symbol: 'Rp.',
+    symbol: 'Rp. ', // Ada spasi agar rapi
     decimalDigits: 0,
   );
 
   @override
   void initState() {
     super.initState();
-    // Panggil API Payment Methods saat halaman dibuka
     context.read<DashboardBloc>().add(FetchPaymentMethodsRequested());
   }
 
-  // --- LOGIKA NUMPAD ---
+  // --- LOGIKA NUMPAD DENGAN FORMAT RUPIAH ---
   void _onNumberPressed(String value) {
     setState(() {
+      // 1. Ambil text saat ini & hapus semua karakter non-angka
+      String cleanText = _paymentController.text.replaceAll(
+        RegExp(r'[^0-9]'),
+        '',
+      );
+
+      // 2. Modifikasi string angka (Tambah / Hapus)
       if (value == '⌫') {
-        if (_paymentController.text.isNotEmpty) {
-          _paymentController.text = _paymentController.text.substring(
-            0,
-            _paymentController.text.length - 1,
-          );
+        if (cleanText.isNotEmpty) {
+          cleanText = cleanText.substring(0, cleanText.length - 1);
         }
       } else {
-        // Cegah input 0 di awal
-        if (_paymentController.text == '0' && value != '.') {
-          _paymentController.text = value;
+        // Cegah input 0 di paling awal (misal: 01)
+        if (cleanText == '0') {
+          cleanText = value;
         } else {
-          _paymentController.text += value;
+          cleanText += value;
         }
+      }
+
+      // 3. Format kembali ke Rupiah & Set ke Controller
+      if (cleanText.isEmpty) {
+        _paymentController.clear();
+      } else {
+        double numberValue = double.tryParse(cleanText) ?? 0;
+        _paymentController.text = currencyFormat.format(numberValue);
       }
     });
   }
 
   // --- LOGIKA PROSES BAYAR ---
   void _processPayment(BuildContext context, int totalAmount) {
-    // 1. Validasi Metode Pembayaran
     if (selectedPaymentMethodCode.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -66,12 +77,15 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
-    // 2. Logic Pembayaran Tunai
-    if (selectedPaymentMethodCode == 'CASH') {
-      final cleanAmount = _paymentController.text.replaceAll(RegExp(r'[^0-9]'), '');
-      final inputCash = int.tryParse(cleanAmount) ?? 0;
+    final cleanAmount = _paymentController.text.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
+    final inputCash = int.tryParse(cleanAmount) ?? 0;
 
-      // Cek apakah uang tunai kurang
+    // Logic Tunai
+    if (selectedPaymentMethodCode == 'CASH') {
+      // Validasi tetap ada agar tidak bisa submit jika uang kurang
       if (inputCash < totalAmount) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -81,16 +95,14 @@ class _PaymentPageState extends State<PaymentPage> {
         );
         return;
       }
-
-      // Kirim Event Transaksi CASH
       context.read<DashboardBloc>().add(
-            const CreateTransactionRequested(paymentMethod: "CASH"),
-          );
+        const CreateTransactionRequested(paymentMethod: "CASH"),
+      );
     } else {
-      // 3. Logic Pembayaran Non-Tunai (QRIS, DEBIT, dll)
+      // Logic Non-Tunai
       context.read<DashboardBloc>().add(
-            CreateTransactionRequested(paymentMethod: selectedPaymentMethodCode),
-          );
+        CreateTransactionRequested(paymentMethod: selectedPaymentMethodCode),
+      );
     }
   }
 
@@ -103,16 +115,12 @@ class _PaymentPageState extends State<PaymentPage> {
       builder: (BuildContext context) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
           ),
           backgroundColor: Colors.white,
           child: Container(
             padding: const EdgeInsets.all(32),
             width: 400,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -125,15 +133,13 @@ class _PaymentPageState extends State<PaymentPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // QR Code Icon
                 Container(
                   width: 150,
                   height: 150,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border.all(color: Colors.grey.shade300, width: 2),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.qr_code_2,
@@ -141,19 +147,12 @@ class _PaymentPageState extends State<PaymentPage> {
                     color: Colors.black87,
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
                 const Text(
                   'NMID : ID83764643838283',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.black87),
                 ),
-
                 const SizedBox(height: 16),
-
                 const Text(
                   'Total',
                   style: TextStyle(
@@ -162,10 +161,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     color: Colors.black87,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
-                // Total Amount untuk QRIS
                 BlocBuilder<DashboardBloc, DashboardState>(
                   builder: (context, state) {
                     return Text(
@@ -178,32 +174,23 @@ class _PaymentPageState extends State<PaymentPage> {
                     );
                   },
                 ),
-
                 const SizedBox(height: 32),
-
-                // Buttons
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
+                        onPressed: () => Navigator.of(context).pop(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey.shade600,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           elevation: 0,
                         ),
                         child: const Text(
                           'Cancel',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
                     ),
@@ -213,24 +200,22 @@ class _PaymentPageState extends State<PaymentPage> {
                         onPressed: () {
                           Navigator.of(context).pop();
                           context.read<DashboardBloc>().add(
-                            const CreateTransactionRequested(paymentMethod: "QRIS"),
+                            const CreateTransactionRequested(
+                              paymentMethod: "QRIS",
+                            ),
                           );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4A3AA0),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           elevation: 0,
                         ),
                         child: const Text(
                           'Check Status',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
                     ),
@@ -248,13 +233,16 @@ class _PaymentPageState extends State<PaymentPage> {
   Widget build(BuildContext context) {
     return BlocConsumer<DashboardBloc, DashboardState>(
       listener: (context, state) {
-        // Handle Sukses
         if (state.status == DashboardStatus.transactionSuccess) {
-           showDialog(
+          showDialog(
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
-              title: const Icon(Icons.check_circle, color: Colors.green, size: 60),
+              title: const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 60,
+              ),
               content: const Text(
                 'Pembayaran Berhasil!',
                 textAlign: TextAlign.center,
@@ -264,35 +252,37 @@ class _PaymentPageState extends State<PaymentPage> {
                 TextButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    Navigator.of(context).pop(); // Kembali ke Dashboard
+                    Navigator.of(context).pop();
                   },
                   child: const Text('OK'),
-                )
+                ),
               ],
             ),
           );
         }
-        // Handle Error
         if (state.status == DashboardStatus.error) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.errorMessage ?? 'Gagal'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text(state.errorMessage ?? 'Gagal'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       },
       builder: (context, state) {
-        // [DATA DARI HOME PAGE / BLOC STATE]
-        // Kita mengambil data yang sudah dihitung oleh Server dan disimpan di State
-        final cartItems = state.cartItems;
         final subtotal = state.subtotal;
-        final tax = state.taxValue;      
-        final total = state.finalTotalAmount; // Total Akhir (Int)
-        final promos = state.appliedPromos;   // List Promo (Auto + Manual)
+        final tax = state.taxValue;
+        final total = state.finalTotalAmount;
+        final promos = state.appliedPromos;
 
         return Scaffold(
           backgroundColor: Colors.white,
           body: Padding(
             padding: const EdgeInsets.only(
-              left: 20, right: 20, top: 20, bottom: 35,
+              left: 24,
+              right: 24,
+              top: 45,
+              bottom: 24,
             ),
             child: Container(
               decoration: BoxDecoration(
@@ -304,16 +294,26 @@ class _PaymentPageState extends State<PaymentPage> {
                 children: [
                   // HEADER
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+                        bottom: BorderSide(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
                       ),
                     ),
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.black,
+                            size: 32,
+                          ),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -323,16 +323,18 @@ class _PaymentPageState extends State<PaymentPage> {
                           'Pembayaran',
                           style: TextStyle(
                             color: Color(0xFF4A3AA0),
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.print, color: Colors.green, size: 28),
-                          onPressed: () {
-                            // TODO: Print receipt logic
-                          },
+                          icon: const Icon(
+                            Icons.print,
+                            color: Colors.green,
+                            size: 28,
+                          ),
+                          onPressed: () {}, // TODO: Print logic
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
@@ -349,77 +351,156 @@ class _PaymentPageState extends State<PaymentPage> {
                           child: Container(
                             decoration: BoxDecoration(
                               border: Border(
-                                right: BorderSide(color: Colors.grey.shade300, width: 1),
+                                right: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
                               ),
                             ),
                             child: Column(
                               children: [
+                                // Header "Detail Pesanan"
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
                                     border: Border(
-                                      bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+                                      bottom: BorderSide(
+                                        color: Colors.grey.shade300,
+                                        width: 1,
+                                      ),
                                     ),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            const Text(
-                                              'Item',
-                                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Detail Pesanan',
-                                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                                            ),
-                                          ],
-                                        ),
+                                  child: const Center(
+                                    child: Text(
+                                      'Detail Pesanan',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
+
+                                // List Item
                                 Expanded(
                                   child: ListView.separated(
-                                    padding: const EdgeInsets.all(16),
-                                    itemCount: cartItems.length,
-                                    separatorBuilder: (_, __) => const Divider(),
+                                    // [PENTING] Hapus padding horizontal di ListView agar garis mentok
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    itemCount: state.cartItems.length,
+
+                                    // [PENTING] Garis pemisah full width
+                                    separatorBuilder: (_, __) => Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Colors.grey.shade300,
+                                      indent: 0,
+                                      endIndent: 0,
+                                    ),
+
                                     itemBuilder: (context, index) {
-                                      final item = cartItems[index];
+                                      final item = state.cartItems[index];
                                       return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                        // Beri padding di sini agar teks tidak nempel pinggir,
+                                        // tapi garis tetap memanjang
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8.0,
+                                          horizontal: 16.0,
+                                        ),
                                         child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
+                                            // 1. Nama Menu & Harga Satuan
                                             Expanded(
                                               flex: 2,
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
                                                     item.product.name,
-                                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.black87),
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: Colors.black87,
+                                                    ),
                                                   ),
+                                                  const SizedBox(height: 4),
                                                   Text(
-                                                    currencyFormat.format(item.product.price),
-                                                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                                                    currencyFormat.format(
+                                                      item.product.price,
+                                                    ),
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color:
+                                                          Colors.grey.shade600,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                            Text(
-                                              'x${item.quantity}',
-                                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
+
+                                            // 2. Qty (TURUN SEDIKIT KE BAWAH)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 6.0,
+                                              ), // <--- INI YANG MENURUNKAN POSISI
+                                              child: SizedBox(
+                                                width: 40,
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.center,
+                                                  children: [
+                                                    const Text(
+                                                      "Qty",
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.black,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'x${item.quantity}',
+                                                      style: const TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: Colors.black87,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
-                                            const SizedBox(width: 24),
-                                            Expanded(
-                                              child: Text(
-                                                currencyFormat.format(item.subtotal),
-                                                textAlign: TextAlign.right,
-                                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
+
+                                            // Jarak antar Qty dan Subtotal
+                                            const SizedBox(width: 65),
+                                            // 3. Subtotal (Dengan Lebar Tetap agar Rata Kanan)
+                                            SizedBox(
+                                              width: 90, // Lebar tetap
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.end,
+                                                children: [
+                                                  // Spacer dummy agar sejajar dengan angka qty (opsional)
+                                                  const SizedBox(height: 14),
+                                                  Text(
+                                                    currencyFormat.format(
+                                                      item.subtotal,
+                                                    ),
+                                                    textAlign: TextAlign.right,
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],
@@ -432,72 +513,128 @@ class _PaymentPageState extends State<PaymentPage> {
                             ),
                           ),
                         ),
-
                         // MIDDLE: SUMMARY & PAYMENT METHOD
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               border: Border(
-                                right: BorderSide(color: Colors.grey.shade300, width: 1),
+                                right: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
                               ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // [UPDATE] Tampilan Rincian Harga agar sama dengan Home Page
-                                _buildSummaryRow('Subtotal', subtotal.toDouble()),
-                                const SizedBox(height: 16),
+                                // 1. SUBTOTAL
+                                _buildSummaryRow(
+                                  'Subtotal',
+                                  subtotal.toDouble(),
+                                ),
+                                const SizedBox(height: 8),
 
-                                // Loop Diskon (Combo)
-                                if (promos.isNotEmpty) ...[
-                                  ...promos.map((promo) => Padding(
+                                // 2. PROMO
+                                if (promos.isNotEmpty)
+                                  ...promos.map(
+                                    (promo) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
+                                      ),
+                                      child: _buildSummaryRow(
+                                        promo.name,
+                                        promo.amount.toDouble(),
+                                        isNegative: true,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                  )
+                                else if (state.discountAmount > 0)
+                                  Padding(
                                     padding: const EdgeInsets.only(bottom: 16),
                                     child: _buildSummaryRow(
-                                      promo.name,
-                                      promo.amount.toDouble(),
+                                      'Discount',
+                                      state.discountAmount.toDouble(),
                                       isNegative: true,
                                       color: Colors.green,
                                     ),
-                                  )),
-                                ] else if (state.discountAmount > 0) ...[
-                                  // Fallback support
-                                  _buildSummaryRow(
-                                    'Discount',
-                                    state.discountAmount.toDouble(),
-                                    isNegative: true,
-                                    color: Colors.green,
                                   ),
-                                  const SizedBox(height: 16),
-                                ],
 
+                                // 3. TAX
                                 _buildSummaryRow(
-                                  state.taxPercentage > 0 
+                                  state.taxPercentage > 0
                                       ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)'
                                       : 'Tax',
                                   tax.toDouble(),
                                   isPositive: true,
                                   color: Colors.red,
                                 ),
-                                const SizedBox(height: 16),
 
-                                _buildSummaryRow('Total', total.toDouble(), isBold: true),
+                                const SizedBox(height: 8),
 
+                                // 4. TOTAL
+                                _buildSummaryRow(
+                                  'Total',
+                                  total.toDouble(),
+                                  isBold: true,
+                                ),
+
+                                // ==========================================
+                                // [TAMBAHAN] TOTAL PAID & CHANGES JIKA CASH
+                                // ==========================================
+                                if (selectedPaymentMethodCode == 'CASH') ...[
+                                  const SizedBox(height: 12),
+                                  Builder(
+                                    builder: (context) {
+                                      // Ambil input uang dari controller
+                                      String cleanText = _paymentController.text
+                                          .replaceAll(RegExp(r'[^0-9]'), '');
+                                      double inputCash =
+                                          double.tryParse(cleanText) ?? 0;
+
+                                      // [LOGIC KEMBALIAN]
+                                      // Jika uang kurang dari total, kembalian = 0
+                                      // Jika uang pas/lebih, hitung selisihnya
+                                      double change =
+                                          (inputCash < total.toDouble())
+                                          ? 0
+                                          : (inputCash - total.toDouble());
+
+                                      return Column(
+                                        children: [
+                                          _buildSummaryRow(
+                                            'Total Paid',
+                                            inputCash,
+                                            // Warna Biru Brand
+                                            color: const Color(0xFF4A3AA0),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          _buildSummaryRow(
+                                            'Changes',
+                                            change,
+                                            // Warna Netral (Hitam)
+                                            color: Colors.red,
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+
+                                // ==========================================
                                 const Spacer(flex: 12),
 
-                                // [MODIFIKASI] Bagian Render Button Dinamis (Fixed Layout 2x2)
-                                const Text(
-                                  "Metode Pembayaran",
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                ),
                                 const SizedBox(height: 10),
-
                                 if (state.paymentMethods.isEmpty)
                                   const Padding(
                                     padding: EdgeInsets.all(8.0),
                                     child: Text(
-                                      "Memuat metode...", 
-                                      style: TextStyle(color: Colors.grey, fontSize: 12)
+                                      "Memuat metode...",
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   )
                                 else
@@ -506,14 +643,19 @@ class _PaymentPageState extends State<PaymentPage> {
                                       final double spacing = 12.0;
                                       final double runSpacing = 12.0;
                                       final int columns = 2;
-                                      final double itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+                                      final double itemWidth =
+                                          (constraints.maxWidth -
+                                              (spacing * (columns - 1))) /
+                                          columns;
 
                                       return Wrap(
                                         spacing: spacing,
                                         runSpacing: runSpacing,
-                                        children: state.paymentMethods.map((method) {
+                                        children: state.paymentMethods.map((
+                                          method,
+                                        ) {
                                           return SizedBox(
-                                            width: itemWidth, 
+                                            width: itemWidth,
                                             child: _buildDynamicPaymentButton(
                                               name: method.name,
                                               code: method.code,
@@ -524,50 +666,90 @@ class _PaymentPageState extends State<PaymentPage> {
                                       );
                                     },
                                   ),
-                                  
                                 const Spacer(flex: 2),
-
                                 Text(
-                                  selectedPaymentMethodName.isEmpty 
-                                      ? 'Pilih Metode' 
+                                  selectedPaymentMethodName.isEmpty
+                                      ? 'Pilih Metode'
                                       : selectedPaymentMethodName,
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
+
+                                // TEXT FIELD INPUT
                                 TextField(
                                   controller: _paymentController,
                                   readOnly: true,
+                                  showCursor: true,
+                                  keyboardType: TextInputType.number,
                                   textAlign: TextAlign.right,
-                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: Colors.grey.shade800),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    CurrencyInputFormatter(),
+                                  ],
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.grey.shade800,
+                                  ),
                                   decoration: InputDecoration(
                                     hintText: 'Total to Pay',
-                                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 15,
+                                    ),
                                     filled: true,
                                     fillColor: Colors.white,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
                                   ),
                                 ),
                                 const Spacer(),
-
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 52,
-                                  child: ElevatedButton(
-                                    onPressed: state.status == DashboardStatus.loading 
-                                        ? null 
-                                        : () => _processPayment(context, total),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF4A3AA0),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      elevation: 0,
-                                    ),
-                                    child: state.status == DashboardStatus.loading
-                                        ? const CircularProgressIndicator(color: Colors.white)
-                                        : const Text(
-                                            'Print Receipt',
-                                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                                Center(
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: 52,
+                                    child: ElevatedButton(
+                                      onPressed:
+                                          state.status ==
+                                              DashboardStatus.loading
+                                          ? null
+                                          : () =>
+                                                _processPayment(context, total),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF4A3AA0,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      child:
+                                          state.status ==
+                                              DashboardStatus.loading
+                                          ? const CircularProgressIndicator(
+                                              color: Colors.white,
+                                            )
+                                          : const Text(
+                                              'Print Receipt',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -591,10 +773,18 @@ class _PaymentPageState extends State<PaymentPage> {
                                 childAspectRatio: aspectRatio,
                                 physics: const NeverScrollableScrollPhysics(),
                                 children: [
-                                  _buildNumpadButton('1'), _buildNumpadButton('2'), _buildNumpadButton('3'),
-                                  _buildNumpadButton('4'), _buildNumpadButton('5'), _buildNumpadButton('6'),
-                                  _buildNumpadButton('7'), _buildNumpadButton('8'), _buildNumpadButton('9'),
-                                  _buildNumpadButton(''), _buildNumpadButton('0'), _buildNumpadButton('⌫'),
+                                  _buildNumpadButton('1'),
+                                  _buildNumpadButton('2'),
+                                  _buildNumpadButton('3'),
+                                  _buildNumpadButton('4'),
+                                  _buildNumpadButton('5'),
+                                  _buildNumpadButton('6'),
+                                  _buildNumpadButton('7'),
+                                  _buildNumpadButton('8'),
+                                  _buildNumpadButton('9'),
+                                  _buildNumpadButton(''),
+                                  _buildNumpadButton('0'),
+                                  _buildNumpadButton('⌫'),
                                 ],
                               );
                             },
@@ -614,7 +804,14 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // --- WIDGET HELPER ---
 
-  Widget _buildSummaryRow(String label, double amount, {bool isNegative = false, bool isPositive = false, bool isBold = false, Color? color}) {
+  Widget _buildSummaryRow(
+    String label,
+    double amount, {
+    bool isNegative = false,
+    bool isPositive = false,
+    bool isBold = false,
+    Color? color,
+  }) {
     String prefix = '';
     if (isNegative && amount > 0) prefix = '-';
     if (isPositive && amount > 0) prefix = '+';
@@ -624,61 +821,73 @@ class _PaymentPageState extends State<PaymentPage> {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: isBold ? 18 : 16, fontWeight: isBold ? FontWeight.bold : FontWeight.w500, color: Colors.black87),
+          style: TextStyle(
+            fontSize: isBold ? 18 : 16,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+            color: color ?? Colors.black87,
+          ),
         ),
         Text(
           '$prefix${currencyFormat.format(amount)}',
-          style: TextStyle(fontSize: isBold ? 18 : 16, fontWeight: isBold ? FontWeight.bold : FontWeight.w500, color: color ?? Colors.black87),
+          style: TextStyle(
+            fontSize: isBold ? 18 : 16,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+            color: color ?? Colors.black87,
+          ),
         ),
       ],
     );
   }
 
-  // Widget Helper Baru untuk Tombol Dinamis
-  Widget _buildDynamicPaymentButton({required String name, required String code, required bool isActive}) {
-    // Cek seleksi berdasarkan CODE & Active Status
+  Widget _buildDynamicPaymentButton({
+    required String name,
+    required String code,
+    required bool isActive,
+  }) {
     final isSelected = selectedPaymentMethodCode == code && isActive;
-    
-    // Warna Disabled
-    final backgroundColor = !isActive 
-        ? Colors.grey.shade100 
-        : (isSelected ? const Color(0xFFE57373) : Colors.white);
+
+    final backgroundColor = !isActive
+        ? Colors.grey.shade100
+        : (isSelected ? Colors.green : Colors.white);
 
     final borderColor = !isActive
         ? Colors.grey.shade300
-        : (isSelected ? const Color(0xFFE57373) : Colors.grey.shade300);
+        : (isSelected ? Colors.green : Colors.grey.shade300);
 
     final textColor = !isActive
         ? Colors.grey.shade400
         : (isSelected ? Colors.white : Colors.black87);
 
     return InkWell(
-      onTap: !isActive 
-          ? null 
+      onTap: !isActive
+          ? null
           : () {
               setState(() {
-                selectedPaymentMethodCode = code; 
-                selectedPaymentMethodName = name; 
+                selectedPaymentMethodCode = code;
+                selectedPaymentMethodName = name;
                 _paymentController.clear();
               });
-              
               if (code == 'QRIS') {
                 _showQrisDialog();
               }
             },
-      borderRadius: BorderRadius.circular(25),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(25),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: borderColor, width: 1),
         ),
         alignment: Alignment.center,
         child: Text(
           name,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textColor),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: textColor,
+          ),
           textAlign: TextAlign.center,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -697,7 +906,11 @@ class _PaymentPageState extends State<PaymentPage> {
         child: Center(
           child: Text(
             value,
-            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w500, color: Colors.black87),
+            style: const TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
           ),
         ),
       ),
@@ -708,5 +921,40 @@ class _PaymentPageState extends State<PaymentPage> {
   void dispose() {
     _paymentController.dispose();
     super.dispose();
+  }
+}
+
+// ================= [TAMBAHAN CLASS FORMATTER] =================
+
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    if (newValue.selection.baseOffset == 0) {
+      return newValue;
+    }
+
+    double value = double.parse(
+      newValue.text.replaceAll(RegExp(r'[^0-9]'), ''),
+    );
+
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp. ',
+      decimalDigits: 0,
+    );
+
+    String newText = formatter.format(value);
+
+    return newValue.copyWith(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
   }
 }

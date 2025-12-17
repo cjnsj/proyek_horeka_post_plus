@@ -398,52 +398,50 @@ class _ProductAreaCombined extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(left: 6, top: 4, bottom: 4, right: 38),
+      margin: const EdgeInsets.only(left: 6, top: 4, bottom: 6, right: 38),
       decoration: BoxDecoration(
-        color: kWhiteColor,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         boxShadow: kCardShadow,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // HEADER KATEGORI
-          Container(
-            height: 45,
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              color: kBrandColor,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ================== HEADER KATEGORI ==================
+            Container(
+              height: 40,
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: kBrandColor, // Background Header Biru
               ),
-            ),
-            child: BlocBuilder<DashboardBloc, DashboardState>(
-              builder: (context, state) {
-                if (state.categories.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(12.0),
-                    child: Text(
-                      'Memuat...',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
+              child: BlocBuilder<DashboardBloc, DashboardState>(
+                builder: (context, state) {
+                  if (state.categories.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.only(left: 16, top: 10),
+                      child: Text(
+                        'Memuat...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
 
-                return ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  itemCount: state.categories.length,
-                  itemBuilder: (context, index) {
-                    final category = state.categories[index];
-                    final isSelected = category == state.selectedCategory;
+                  return ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    // Padding atas 6 agar tab terlihat "tumbuh" dari bawah
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    itemCount: state.categories.length,
+                    itemBuilder: (context, index) {
+                      final category = state.categories[index];
+                      final isSelected = category == state.selectedCategory;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: InkWell(
+                      return InkWell(
                         onTap: () {
                           context.read<DashboardBloc>().add(
                             SelectCategory(category),
@@ -451,133 +449,143 @@ class _ProductAreaCombined extends StatelessWidget {
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          margin: const EdgeInsets.only(right: 4),
+                          // Hapus padding horizontal di sini agar garis bisa mentok ujung kiri-kanan
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? kWhiteColor
                                 : Colors.transparent,
                             borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(12),
+                              top: Radius.circular(10), // Radius atas folder
                             ),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              const Spacer(),
-                              Text(
-                                category,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? kBrandColor
-                                      : Colors.white.withOpacity(0.8),
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  fontSize: 13,
+                              // 1. TEKS KATEGORI
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
+                                child: Text(
+                                  category,
+                                  style: TextStyle(
+                                    // Hitam jika aktif, Putih jika tidak
+                                    color: isSelected
+                                        ? kTextDark
+                                        : Colors.white.withOpacity(0.9),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
-                              const Spacer(),
+
+                              // 2. GARIS HITAM DI BAWAH (HANYA JIKA AKTIF)
                               if (isSelected)
-                                Container(
-                                  height: 3,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 40,
-                                  ),
-                                  margin: const EdgeInsets.only(bottom: 0),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.grey,
-                                    borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(2),
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: Container(
+                                    height: 1, // Ketebalan garis
+                                    decoration: const BoxDecoration(
+                                      color:
+                                          Colors.grey, // <-- WARNA GARIS HITAM
+                                      // Opsional: Jika ingin garisnya tidak rounded, hapus borderRadius ini
                                     ),
                                   ),
-                                )
-                              else
-                                const SizedBox(height: 3),
+                                ),
                             ],
                           ),
                         ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // ================== BODY (GRID PRODUK) ==================
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(color: kWhiteColor),
+                child: BlocBuilder<DashboardBloc, DashboardState>(
+                  builder: (context, state) {
+                    if (state.status == DashboardStatus.loading) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: kBrandColor),
+                      );
+                    } else if (state.status == DashboardStatus.error) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              state.errorMessage ?? 'Gagal memuat menu',
+                              style: const TextStyle(color: kTextGrey),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => context
+                                  .read<DashboardBloc>()
+                                  .add(FetchMenuRequested()),
+                              child: const Text('Coba Lagi'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else if (state.filteredProducts.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.search_off,
+                              size: 48,
+                              color: kTextGrey,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Tidak ada produk di kategori "${state.selectedCategory}"',
+                              style: const TextStyle(color: kTextGrey),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: GridView.builder(
+                        itemCount: state.filteredProducts.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 1.4,
+                            ),
+                        itemBuilder: (context, index) {
+                          final product = state.filteredProducts[index];
+                          return _MenuCard(product: product);
+                        },
                       ),
                     );
                   },
-                );
-              },
+                ),
+              ),
             ),
-          ),
-
-          // GRID PRODUK
-          Expanded(
-            child: BlocBuilder<DashboardBloc, DashboardState>(
-              builder: (context, state) {
-                if (state.status == DashboardStatus.loading) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: kBrandColor),
-                  );
-                } else if (state.status == DashboardStatus.error) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          state.errorMessage ?? 'Gagal memuat menu',
-                          style: const TextStyle(color: kTextGrey),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => context.read<DashboardBloc>().add(
-                            FetchMenuRequested(),
-                          ),
-                          child: const Text('Coba Lagi'),
-                        ),
-                      ],
-                    ),
-                  );
-                } else if (state.filteredProducts.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.search_off,
-                          size: 48,
-                          color: kTextGrey,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Tidak ada produk di kategori "${state.selectedCategory}"',
-                          style: const TextStyle(color: kTextGrey),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: GridView.builder(
-                    itemCount: state.filteredProducts.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.4,
-                        ),
-                    itemBuilder: (context, index) {
-                      final product = state.filteredProducts[index];
-                      return _MenuCard(product: product);
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -596,7 +604,8 @@ class _MenuCard extends StatelessWidget {
       decimalDigits: 0,
     );
 
-    const double cardRadius = 16.0;
+    // Radius kartu
+    const double cardRadius = 12.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -614,6 +623,7 @@ class _MenuCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // 1. BACKGROUND IMAGE
             product.imageUrl.isNotEmpty
                 ? Image.network(
                     product.imageUrl.startsWith('http')
@@ -628,25 +638,34 @@ class _MenuCard extends StatelessWidget {
                     },
                   )
                 : Image.asset('assets/images/nodata.png', fit: BoxFit.cover),
+
+            // 2. GRADIENT OVERLAY (EFEK BAYANGAN HITAM) - [DITAMBAHKAN]
             Positioned(
               bottom: 0,
               left: 0,
               right: 0,
-              height: 80,
+              height: 40, // Tinggi area bayangan
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                    colors: [
+                      Colors.black.withOpacity(0.4), // Atas transparan
+                      Colors.black.withOpacity(
+                        0.4,
+                      ), // Bawah hitam pekat transparan
+                    ],
                   ),
                 ),
               ),
             ),
+
+            // 3. NAMA & HARGA (DI ATAS GRADIENT)
             Positioned(
-              bottom: 12,
+              bottom: 2,
               left: 12,
-              right: 40,
+              right: 40, // Beri ruang untuk tombol tambah di kanan
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,16 +675,15 @@ class _MenuCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Colors.white, // Teks Putih
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     formatter.format(product.price),
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Colors.white, // Teks Putih
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -673,9 +691,11 @@ class _MenuCard extends StatelessWidget {
                 ],
               ),
             ),
+
+            // 4. TOMBOL TAMBAH (+)
             Positioned(
               bottom: 10,
-              right: 10,
+              right: 14,
               child: InkWell(
                 onTap: () {
                   context.read<DashboardBloc>().add(AddToCart(product));
@@ -684,9 +704,13 @@ class _MenuCard extends StatelessWidget {
                   'assets/icons/tambah.svg',
                   width: 21,
                   height: 21,
+                  // Opsional: Beri warna putih agar kontras
+                  // colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                 ),
               ),
             ),
+
+            // 5. RIPPLE EFFECT FULL CARD
             Positioned.fill(
               child: Material(
                 color: Colors.transparent,
@@ -704,7 +728,6 @@ class _MenuCard extends StatelessWidget {
     );
   }
 }
-
 // ================== [WIDGETS LAIN] ==================
 
 class _BottomActionsBar extends StatelessWidget {
@@ -813,10 +836,18 @@ class _BottomButton extends StatelessWidget {
   }
 }
 
-// ================== CART AREA ==================
+// ================== CART AREA FULL FIX ==================
 
-class _CartAreaFullScreen extends StatelessWidget {
+class _CartAreaFullScreen extends StatefulWidget {
   const _CartAreaFullScreen();
+
+  @override
+  State<_CartAreaFullScreen> createState() => _CartAreaFullScreenState();
+}
+
+class _CartAreaFullScreenState extends State<_CartAreaFullScreen> {
+  // Variable untuk visual highlight baris yang dipilih (Opsional)
+  CartItem? _selectedItem;
 
   @override
   Widget build(BuildContext context) {
@@ -830,9 +861,27 @@ class _CartAreaFullScreen extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _CartHeader(),
-            Expanded(child: _CartContent()),
+          children: [
+            // Header: Menangani Tombol Delete (Otomatis muncul/hilang via Bloc)
+            const _CartHeader(),
+
+            // Content: Menangani List Item & Highlight Seleksi
+            Expanded(
+              child: _CartContent(
+                selectedItem: _selectedItem, // Error sebelumnya ada disini
+                onItemSelected: (item) {
+                  setState(() {
+                    // Logic visual highlight: Klik lagi untuk unselect
+                    if (_selectedItem != null &&
+                        _selectedItem!.product.name == item.product.name) {
+                      _selectedItem = null;
+                    } else {
+                      _selectedItem = item;
+                    }
+                  });
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -867,13 +916,28 @@ class _CartHeader extends StatelessWidget {
               fontSize: 18,
             ),
           ),
-          IconButton(
-            icon: SvgPicture.asset(
-              'assets/icons/delete.svg',
-              width: 24,
-              height: 24,
-            ),
-            onPressed: () => context.read<DashboardBloc>().add(ClearCart()),
+
+          // [LOGIC TOMBOL DELETE - LANGSUNG HAPUS]
+          BlocBuilder<DashboardBloc, DashboardState>(
+            builder: (context, state) {
+              // Jika Cart ADA ISI -> Tampilkan Tombol
+              if (state.cartItems.isNotEmpty) {
+                return IconButton(
+                  tooltip: "Kosongkan Keranjang",
+                  icon: SvgPicture.asset(
+                    'assets/icons/delete.svg',
+                    width: 24,
+                    height: 24,
+                  ),
+                  onPressed: () {
+                    // [MODIFIKASI] Langsung hapus tanpa dialog konfirmasi
+                    context.read<DashboardBloc>().add(ClearCart());
+                  },
+                );
+              }
+              // Jika Cart KOSONG -> Sembunyikan Tombol
+              return const SizedBox();
+            },
           ),
         ],
       ),
@@ -882,42 +946,82 @@ class _CartHeader extends StatelessWidget {
 }
 
 class _CartContent extends StatelessWidget {
-  const _CartContent();
+  final CartItem? selectedItem;
+  final Function(CartItem) onItemSelected;
+
+  const _CartContent({
+    required this.selectedItem,
+    required this.onItemSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         if (state.cartItems.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(
-                  Icons.shopping_cart_outlined,
-                  size: 48,
-                  color: Colors.grey,
+          return Column(
+            children: [
+              const SizedBox(
+                height: 250,
+              ), // Jarak dari top (sesuaikan jika perlu)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      'assets/icons/tambah.svg',
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        kBrandColor,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'New Order',
+                      style: TextStyle(fontSize: 18, color: Colors.black),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 8),
-                Text('Keranjang Kosong', style: TextStyle(color: kTextGrey)),
-              ],
-            ),
+              ),
+              const SizedBox(
+                height: 225,
+              ), 
+              Container(height: 1, color: kBorderColor),
+              const Spacer(), // Dorong sisa ruang ke bawah
+            ],
           );
         }
 
+        // TAMPILAN ADA ISI CART
         return Column(
           children: [
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 itemCount: state.cartItems.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  color: Colors.grey.shade300,
+                  thickness: 1,
+                ),
                 itemBuilder: (context, index) {
                   final item = state.cartItems[index];
-                  return _CartItemRow(item: item);
+                  final isSelected =
+                      selectedItem != null &&
+                      item.product.name == selectedItem!.product.name;
+
+                  return _CartItemRow(
+                    item: item,
+                    isSelected: isSelected,
+                    onTap: () => onItemSelected(item),
+                  );
                 },
               ),
             ),
+            
+            // --- FOOTER (Promo, Summary, Buttons) ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Align(
@@ -925,26 +1029,27 @@ class _CartContent extends StatelessWidget {
                 child: const _PromoCodeButton(),
               ),
             ),
-            const SizedBox(height: 26),
+            const SizedBox(height: 16),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: _SummaryColumn(),
             ),
-            const SizedBox(height: 12),
-            Container(height: 1, color: kBorderColor),
             const SizedBox(height: 16),
+            
+            Container(height: 1, color: kBorderColor),
+
+            const SizedBox(height: 8),
+            
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Row(
                 children: [
-                  // TOMBOL SAVE QUEUE (SMART LOGIC)
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        // Warna Oranye jika Edit Mode, Abu jika New Mode
                         backgroundColor: state.editingQueue != null
                             ? Colors.orange.shade700
-                            : Colors.grey.shade400,
+                            : kBrandColor,
                         foregroundColor: kWhiteColor,
                         minimumSize: const Size.fromHeight(55),
                         shape: RoundedRectangleBorder(
@@ -952,7 +1057,6 @@ class _CartContent extends StatelessWidget {
                         ),
                       ),
                       onPressed: () async {
-                        // 1. Cek Cart Kosong
                         if (state.cartItems.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -961,27 +1065,21 @@ class _CartContent extends StatelessWidget {
                           );
                           return;
                         }
-
-                        // 2. CEK MODE EDIT ATAU BARU?
                         if (state.editingQueue != null) {
-                          // --- MODE EDIT: UPDATE LANGSUNG (BYPASS DIALOG) ---
                           context.read<DashboardBloc>().add(
                             SaveQueueRequested(
-                              // Pakai data lama dari antrian yang sedang diedit
                               tableNumber: state.editingQueue!.customerName,
                               waiterName: "",
                               orderNotes: state.editingQueue!.note,
                             ),
                           );
                         } else {
-                          // --- MODE BARU: TAMPILKAN DIALOG ---
                           final result = await showDialog(
                             context: context,
                             barrierDismissible: false,
                             barrierColor: kBrandColor.withOpacity(0.5),
                             builder: (context) => const SaveQueueDialog(),
                           );
-
                           if (result != null && result is Map) {
                             context.read<DashboardBloc>().add(
                               SaveQueueRequested(
@@ -993,7 +1091,6 @@ class _CartContent extends StatelessWidget {
                           }
                         }
                       },
-                      // Ubah teks tombol sesuai mode
                       child: Text(
                         state.editingQueue != null
                             ? 'Update Queue'
@@ -1001,9 +1098,7 @@ class _CartContent extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-
-                  // TOMBOL PAY NOW
+                  const SizedBox(width: 18),
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -1014,14 +1109,12 @@ class _CartContent extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PaymentPage(),
-                          ),
-                        );
-                      },
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PaymentPage(),
+                        ),
+                      ),
                       child: const Text('Pay Now'),
                     ),
                   ),
@@ -1037,7 +1130,14 @@ class _CartContent extends StatelessWidget {
 
 class _CartItemRow extends StatelessWidget {
   final CartItem item;
-  const _CartItemRow({required this.item});
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _CartItemRow({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1047,69 +1147,83 @@ class _CartItemRow extends StatelessWidget {
       decimalDigits: 2,
     );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        // Ganti baris color menjadi:
+        color: Colors.transparent,
+        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Tombol Tambah/Kurang (Tetap)
+            Column(
+              children: [
+                InkWell(
+                  onTap: () => context.read<DashboardBloc>().add(
+                    AddToCart(item.product),
+                  ),
+                  child: const Icon(
+                    Icons.add_circle_outline,
+                    color: kBrandColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                InkWell(
+                  onTap: () => context.read<DashboardBloc>().add(
+                    RemoveFromCart(item.product),
+                  ),
+                  child: const Icon(
+                    Icons.remove_circle_outline,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(width: 12),
+
+            // 2. Nama & Harga Satuan (Expanded - Mengisi sisa ruang)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  InkWell(
-                    onTap: () => context.read<DashboardBloc>().add(
-                      AddToCart(item.product),
-                    ),
-                    child: const Icon(
-                      Icons.add_circle_outline,
-                      color: kBrandColor,
-                      size: 20,
+                  Text(
+                    item.product.name,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w600,
+                      fontSize: 14,
+                      color: isSelected ? Colors.black : Colors.black,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  InkWell(
-                    onTap: () => context.read<DashboardBloc>().add(
-                      RemoveFromCart(item.product),
-                    ),
-                    child: const Icon(
-                      Icons.remove_circle_outline,
-                      color: Colors.red,
-                      size: 20,
-                    ),
+                  Text(
+                    formatter.format(item.product.price),
+                    style: const TextStyle(fontSize: 12, color: kTextGrey),
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.product.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: kTextDark,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatter.format(item.product.price),
-                      style: const TextStyle(fontSize: 12, color: kTextGrey),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
+            ),
+
+            // 3. Kolom Qty (DIBERI LEBAR TETAP AGAR RATA)
+            // Saya beri lebar 40 pixel. Anda bisa ubah angkanya.
+            SizedBox(
+              width: 40,
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Text(
                     'Qty',
-                    style: TextStyle(fontSize: 11, color: kTextGrey),
+                    style: TextStyle(fontSize: 12, color: Colors.black),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${item.quantity}',
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -1118,18 +1232,24 @@ class _CartItemRow extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(width: 24),
-              Text(
+            ),
+
+            // 4. Kolom Subtotal (DIBERI LEBAR TETAP JUGA)
+            // Ini penting agar Qty tidak terdorong jika harga berubah digitnya.
+            SizedBox(
+              width: 150, // Sesuaikan lebar ini agar muat angka jutaan
+              child: Text(
                 formatter.format(item.subtotal),
+                textAlign: TextAlign.right, // Rata kanan agar rapi
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                   color: kTextDark,
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1146,6 +1266,10 @@ class _SummaryColumn extends StatelessWidget {
         final subtotal = state.subtotal;
         final tax = state.taxValue;
         final total = state.finalTotalAmount;
+
+        // [LOGIC BARU] Hitung harga asli sebelum diskon (Subtotal + Pajak)
+        // Ini yang akan ditampilkan sebagai harga coret
+        final originalTotal = subtotal + tax;
 
         // List promo yang didapat dari server (Gabungan Auto & Manual)
         final promos = state.appliedPromos;
@@ -1167,14 +1291,12 @@ class _SummaryColumn extends StatelessWidget {
               const SizedBox(height: 4),
               ...promos.map(
                 (promo) => _SummaryRow(
-                  label:
-                      'Discount (${promo.name})', // Nama Diskon (misal: "Disc Otomatis")
+                  label: 'Discount (${promo.name})',
                   value: '- ${formatter.format(promo.amount)}',
-                  textColor: Colors.green, // Hijau biar kelihatan untung
+                  textColor: Colors.green,
                 ),
               ),
             ] else if (state.discountAmount > 0) ...[
-              // Fallback jika appliedPromos kosong tapi ada nilai diskon (backward compatibility)
               _SummaryRow(
                 label: 'Discount',
                 value: '- ${formatter.format(state.discountAmount)}',
@@ -1189,14 +1311,19 @@ class _SummaryColumn extends StatelessWidget {
                   ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)'
                   : 'Tax',
               value: '+ ${formatter.format(tax)}',
-              textColor: Colors.red,
+              textColor: Colors.black,
             ),
 
-            // 4. Total Akhir
+            // 4. Total Akhir (DENGAN HARGA CORET)
             _SummaryRow(
               label: 'Total',
               value: formatter.format(total),
               isBold: true,
+              // [LOGIC BARU] Tampilkan harga coret HANYA JIKA ada diskon (Total != Original)
+              // Jika ingin selalu muncul meski tidak ada diskon, hapus kondisi 'originalTotal != total'
+              strikeThroughValue: originalTotal != total
+                  ? formatter.format(originalTotal)
+                  : null,
             ),
           ],
         );
@@ -1209,30 +1336,58 @@ class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isBold;
-  final Color? textColor; // [BARU] Tambahkan properti ini
+  final Color? textColor;
+  final String? strikeThroughValue; // [BARU] Parameter untuk teks coret
 
   const _SummaryRow({
     required this.label,
     required this.value,
     this.isBold = false,
-    this.textColor, // [BARU] Tambahkan di constructor
+    this.textColor,
+    this.strikeThroughValue, // [BARU] Tambahkan di constructor
   });
 
   @override
   Widget build(BuildContext context) {
     final style = TextStyle(
-      // Gunakan textColor jika ada, jika tidak gunakan kTextGrey (default)
-      color: textColor ?? kTextGrey,
+      color:
+          textColor ??
+          kTextDark, // Menggunakan kTextDark (sesuaikan dgn konstanta Anda) atau Colors.black
       fontSize: 13,
       fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
     );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Label Kiri (Total, Tax, dll)
           Text(label, style: style),
-          Text(value, style: style),
+
+          // Bagian Kanan (Harga Coret + Harga Akhir)
+          Row(
+            children: [
+              // [LOGIC BARU] Jika ada nilai strikeThroughValue, tampilkan
+              if (strikeThroughValue != null) ...[
+                Text(
+                  strikeThroughValue!,
+                  style: const TextStyle(
+                    color: Colors.grey, // Warna abu-abu
+                    fontSize: 12, // Sedikit lebih kecil
+                    decoration: TextDecoration.lineThrough, // Efek Coret
+                    decorationColor: Colors.grey,
+                  ),
+                ),
+                const SizedBox(
+                  width: 8,
+                ), // Jarak antara harga coret dan harga asli
+              ],
+
+              // Harga Akhir
+              Text(value, style: style),
+            ],
+          ),
         ],
       ),
     );

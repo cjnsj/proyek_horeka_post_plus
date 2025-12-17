@@ -74,6 +74,7 @@ class _SaveQueueDialogState extends State<SaveQueueDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _tableNumberController,
+                style: const TextStyle(color: Colors.black), // <--- WARNA TEKS INPUT HITAM
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.grey.shade100,
@@ -109,6 +110,7 @@ class _SaveQueueDialogState extends State<SaveQueueDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _waiterNameController,
+                style: const TextStyle(color: Colors.black), // <--- WARNA TEKS INPUT HITAM
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.grey.shade100,
@@ -144,6 +146,7 @@ class _SaveQueueDialogState extends State<SaveQueueDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _orderNotesController,
+                style: const TextStyle(color: Colors.black), // <--- WARNA TEKS INPUT HITAM
                 maxLines: 3,
                 decoration: InputDecoration(
                   filled: true,
