@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 
 class PromoCodeDialog extends StatefulWidget {
@@ -100,12 +101,7 @@ class _PromoCodeDialogState extends State<PromoCodeDialog> {
                   final code = _codeController.text.trim();
                   
                   if (code.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter promo code!'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                    ToastUtils.showErrorToast('Please enter promo code!');
                     return;
                   }
 
