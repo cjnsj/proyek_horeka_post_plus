@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 import 'package:intl/intl.dart';
 import 'package:horeka_post_plus/features/dashboard/dialogs/konfirmasi_saldo_dialog.dart';
@@ -55,13 +56,13 @@ class _StartingBalanceDialogState extends State<StartingBalanceDialog> {
   void _saveBalance() {
     final balanceText = _balanceController.text.trim();
     if (balanceText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter the starting balance'), backgroundColor: Colors.red));
+      ToastUtils.showErrorToast('Please enter the starting balance');
       return;
     }
     final numericString = balanceText.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = int.tryParse(numericString) ?? 0;
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Starting balance must be greater than 0'), backgroundColor: Colors.red));
+      ToastUtils.showErrorToast('Starting balance must be greater than 0');
       return;
     }
 
