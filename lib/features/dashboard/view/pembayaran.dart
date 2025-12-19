@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart'; // [IMPORT WAJIB] Untuk TextInputFormatter
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
@@ -68,12 +69,7 @@ class _PaymentPageState extends State<PaymentPage> {
   // --- LOGIKA PROSES BAYAR ---
   void _processPayment(BuildContext context, int totalAmount) {
     if (selectedPaymentMethodCode.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pilih metode pembayaran terlebih dahulu!'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ToastUtils.showWarningToast('Pilih metode pembayaran terlebih dahulu!');
       return;
     }
 
@@ -87,12 +83,7 @@ class _PaymentPageState extends State<PaymentPage> {
     if (selectedPaymentMethodCode == 'CASH') {
       // Validasi tetap ada agar tidak bisa submit jika uang kurang
       if (inputCash < totalAmount) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Uang tunai kurang!'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastUtils.showErrorToast('Uang tunai kurang!');
         return;
       }
       context.read<DashboardBloc>().add(
@@ -238,13 +229,7 @@ class _PaymentPageState extends State<PaymentPage> {
           // [TAMBAHAN] Trigger Print Otomatis saat Transaksi Sukses
           context.read<DashboardBloc>().add(const PrintReceiptRequested());
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Transaksi Berhasil! Mencetak struk...'),
-              duration: Duration(seconds: 2),
-              backgroundColor: Colors.green,
-            ),
-          );
+          ToastUtils.showSuccessToast('Transaksi Berhasil! Mencetak struk...');
 
           showDialog(
             context: context,
@@ -281,12 +266,7 @@ class _PaymentPageState extends State<PaymentPage> {
           );
         }
         if (state.status == DashboardStatus.error) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.errorMessage ?? 'Gagal'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          ToastUtils.showErrorToast(state.errorMessage ?? 'Gagal');
         }
       },
       builder: (context, state) {
@@ -366,12 +346,7 @@ class _PaymentPageState extends State<PaymentPage> {
                               onPressed: () {
                                 // Jika merah, beri tahu user
                                 if (!state.isPrinterConnected) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Printer belum terhubung!'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
+                                  ToastUtils.showErrorToast('Printer belum terhubung!');
                                 }
                               },
                               padding: EdgeInsets.zero,
