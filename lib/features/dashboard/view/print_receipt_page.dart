@@ -3,6 +3,7 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_pos_printer_platform_image_3/flutter_pos_printer_platform_image_3.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
@@ -105,16 +106,11 @@ class _PrintReceiptHeaderBarState extends State<_PrintReceiptHeaderBar> {
           IconButton(
             onPressed: () {
               _checkPrinterStatus();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    _isPrinterReady
-                        ? 'Printer is ready!'
-                        : 'No printer selected. Please go to Settings.',
-                  ),
-                  backgroundColor: _isPrinterReady ? Colors.green : Colors.red,
-                ),
-              );
+              if (_isPrinterReady) {
+                ToastUtils.showSuccessToast('Printer is ready!');
+              } else {
+                ToastUtils.showErrorToast('No printer selected. Please go to Settings.');
+              }
             },
             icon: Icon(
               Icons.print,
@@ -476,12 +472,7 @@ class _RightCartDetailState extends State<_RightCartDetail> {
 
       if (savedPrinters.isEmpty || selectedId == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No printer selected. Go to Settings.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        ToastUtils.showWarningToast('No printer selected. Go to Settings.');
         return;
       }
 
@@ -697,20 +688,10 @@ class _RightCartDetailState extends State<_RightCartDetail> {
       await printerManager.send(type: type, bytes: bytes);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Receipt sent'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      ToastUtils.showSuccessToast('Receipt sent');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Print failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ToastUtils.showErrorToast('Print failed: $e');
     } finally {
       setState(() => _isPrinting = false);
     }
