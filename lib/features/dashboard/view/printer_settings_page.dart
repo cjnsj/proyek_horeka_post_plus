@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/data/saved_printer.dart';
 import 'package:horeka_post_plus/features/dashboard/services/printer_storage_service.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
@@ -134,7 +135,6 @@ class _PrinterSettingsCardState extends State<_PrinterSettingsCard> {
   }
 
   // ================= METHOD TEST PRINT =================
-  // ================= METHOD TEST PRINT =================
   Future<void> _testPrint(SavedPrinter printer) async {
     try {
       final printerManager = PrinterManager.instance;
@@ -202,38 +202,16 @@ class _PrinterSettingsCardState extends State<_PrinterSettingsCard> {
 
       // Print
       await printerManager.send(type: type, bytes: bytes);
-      // Setelah printerManager.send()
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Test print sent to ${printer.name}\n'
-              'Check if receipt is printing...',
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Test print sent successfully!'),
-            backgroundColor: Colors.green,
-          ),
+        ToastUtils.showSuccessToast(
+          'Test print sent to ${printer.name}\nCheck if receipt is printing...',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Test print failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastUtils.showErrorToast('Test print failed: $e');
       }
     }
   }
@@ -613,12 +591,7 @@ class _PrinterSettingsLeftUsbFormState
       });
 
       if (deviceFound) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Printer test successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        ToastUtils.showSuccessToast('Printer test successful!');
       }
     } catch (e) {
       setState(() {
@@ -646,18 +619,11 @@ class _PrinterSettingsLeftUsbFormState
 
     widget.onSave(printer);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('USB Printer saved successfully!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    ToastUtils.showSuccessToast('USB Printer saved successfully!');
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.orange),
-    );
+    ToastUtils.showWarningToast(message);
   }
 
   @override
@@ -888,12 +854,7 @@ class _PrinterSettingsRight extends StatelessWidget {
 
   void _showChoosePrinterDialog(BuildContext context) {
     if (savedPrinters.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please add a printer first'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ToastUtils.showWarningToast('Please add a printer first');
       return;
     }
 
@@ -1146,12 +1107,7 @@ class _BluetoothPrinterDialogState extends State<_BluetoothPrinterDialog> {
 
     if (!allGranted) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bluetooth permissions are required'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastUtils.showErrorToast('Bluetooth permissions are required');
         Navigator.of(context).pop();
       }
       return;
@@ -1302,12 +1258,7 @@ class _BluetoothPrinterDialogState extends State<_BluetoothPrinterDialog> {
                           onTap: () {
                             widget.onAddPrinter(device);
                             Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Added ${device.name}'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
+                            ToastUtils.showSuccessToast('Added ${device.name}');
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
