@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_bloc.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_state.dart';
@@ -27,11 +28,8 @@ class AuthPage extends StatelessWidget {
         listener: (context, state) {
           // Error umum
           if (state.status == AuthStatus.error) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage ?? 'Terjadi kesalahan'),
-                backgroundColor: Colors.red,
-              ),
+            ToastUtils.showErrorToast(
+              state.errorMessage ?? 'Terjadi kesalahan',
             );
           }
 
@@ -42,10 +40,10 @@ class AuthPage extends StatelessWidget {
             context.read<AuthBloc>().add(FetchDeviceInfoRequested());
           }
 
-          // Login sukses → bersihkan snackbar, lalu ganti ke HomePage
+          // Login sukses → tidak perlu clear toast karena otomatis hilang
           if (state.status == AuthStatus.authenticated &&
               state.isAuthenticated) {
-            ScaffoldMessenger.of(context).clearSnackBars();
+            // Toast akan otomatis hilang
           }
         },
         child: BlocBuilder<AuthBloc, AuthState>(
