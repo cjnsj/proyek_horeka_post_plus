@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
@@ -536,9 +537,7 @@ class _BottomButtonsBar extends StatelessWidget {
                 onPressed: () {
                   context.read<DashboardBloc>().add(LoadQueueRequested(selectedQueue));
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Item dimuat ke keranjang.'), duration: Duration(seconds: 1)),
-                  );
+                  ToastUtils.showInfoToast('Item dimuat ke keranjang.');
                 },
                 child: const Text('Add/Edit Item', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
