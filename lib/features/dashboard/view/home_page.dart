@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:horeka_post_plus/core/constants/app_constants.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_bloc.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_state.dart';
@@ -118,11 +118,8 @@ class _HomePageState extends State<HomePage> {
               final isPinError =
                   state.errorMessage?.toLowerCase().contains('pin') == true;
               if (!isPinError) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.errorMessage ?? 'Terjadi kesalahan'),
-                    backgroundColor: Colors.red,
-                  ),
+                ToastUtils.showErrorToast(
+                  state.errorMessage ?? 'Terjadi kesalahan',
                 );
               }
             }
@@ -145,12 +142,7 @@ class _HomePageState extends State<HomePage> {
             if (state.status == AuthStatus.success && state.isShiftOpen) {
               print("✅ [LOGIC] Shift Terbuka! Simpan Sesi & Fetch Menu.");
               if (_isDialogShowing) Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Shift berhasil dibuka!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              ToastUtils.showSuccessToast('Shift berhasil dibuka!');
               context.read<DashboardBloc>().add(SaveDashboardSession());
               context.read<DashboardBloc>().add(FetchMenuRequested());
             }
@@ -184,22 +176,11 @@ class _HomePageState extends State<HomePage> {
             }
             // Toasts...
             if (state.status == DashboardStatus.expenseSuccess)
-              Fluttertoast.showToast(
-                msg: "Pengeluaran Berhasil!",
-                backgroundColor: Colors.green,
-              );
+              ToastUtils.showSuccessToast("Pengeluaran Berhasil!");
             if (state.status == DashboardStatus.queueSuccess)
-              Fluttertoast.showToast(
-                msg: "Antrian Disimpan!",
-                backgroundColor: Colors.blue,
-              );
+              ToastUtils.showInfoToast("Antrian Disimpan!");
             if (state.status == DashboardStatus.error)
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.errorMessage ?? 'Error'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              ToastUtils.showErrorToast(state.errorMessage ?? 'Error');
           },
         ),
       ],
@@ -1058,11 +1039,7 @@ class _CartContent extends StatelessWidget {
                       ),
                       onPressed: () async {
                         if (state.cartItems.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Keranjang masih kosong!'),
-                            ),
-                          );
+                          ToastUtils.showWarningToast('Keranjang masih kosong!');
                           return;
                         }
                         if (state.editingQueue != null) {
@@ -1467,9 +1444,7 @@ class _PromoCodeButton extends StatelessWidget {
               if (hasPromo) {
                 // Hapus promo (Panggil Event RemovePromoCodeRequested)
                 context.read<DashboardBloc>().add(RemovePromoCodeRequested());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Kode promo dihapus")),
-                );
+                ToastUtils.showInfoToast("Kode promo dihapus");
               } else {
                 // Input promo
                 _showPromoInput(context);
