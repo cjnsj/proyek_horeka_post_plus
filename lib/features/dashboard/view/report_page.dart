@@ -198,6 +198,7 @@ class _SalesReportCard extends StatelessWidget {
   }
 }
 
+// Ubah class _ReportTab menjadi:
 class _ReportTab extends StatelessWidget {
   final String label;
   final bool isActive;
@@ -211,11 +212,15 @@ class _ReportTab extends StatelessWidget {
       decoration: BoxDecoration(
         color: isActive ? kWhiteColor : Colors.transparent,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        // [TAMBAHKAN INI] Border line di bawah tab aktif
+        border: isActive
+            ? const Border(bottom: BorderSide(color: kTextGrey, width: 1.0))
+            : null,
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: isActive ? kBrandColor : kWhiteColor,
+          color: isActive ? kTextDark : kWhiteColor,
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -350,7 +355,7 @@ class _SalesReportContent extends StatelessWidget {
                       ),
                     )
                   : Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
                       child: ListView.separated(
                         itemCount: filteredTransactions.length,
                         separatorBuilder: (context, index) => const Divider(
@@ -360,35 +365,52 @@ class _SalesReportContent extends StatelessWidget {
                         ),
                         itemBuilder: (context, index) {
                           final tx = filteredTransactions[index];
-                          
+
                           // [LOGIKA SELECT]
-                          // Cek apakah item ini sedang dipilih
-                          final isSelected = state.selectedReportTransaction != null &&
-                              state.selectedReportTransaction!['transaction_id'] == tx['transaction_id'];
+                          final isSelected =
+                              state.selectedReportTransaction != null &&
+                              state.selectedReportTransaction!['transaction_id'] ==
+                                  tx['transaction_id'];
 
                           final rawTotal = tx['total_amount'].toString();
-                          final total = int.tryParse(rawTotal.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+                          final total =
+                              int.tryParse(
+                                rawTotal.replaceAll(RegExp(r'[^0-9]'), ''),
+                              ) ??
+                              0;
                           final noStruk = tx['receipt_number'] ?? '-';
-                          final status = (tx['status'] ?? '').toString().toUpperCase();
+                          final status = (tx['status'] ?? '')
+                              .toString()
+                              .toUpperCase();
 
                           String timeStr = '-';
                           try {
                             if (tx['transaction_time'] != null) {
                               final dt = DateTime.parse(tx['transaction_time']);
-                              timeStr = DateFormat('HH:mm').format(dt.toLocal());
+                              timeStr = DateFormat(
+                                'HH:mm',
+                              ).format(dt.toLocal());
                             }
                           } catch (_) {}
 
-                          // [WRAP DENGAN INKWELL UNTUK KLIK]
+                          // [PERBAIKAN FULL WIDTH INKWELL]
+                          // Material -> InkWell -> Padding -> Content
                           return Material(
-                            color: isSelected ? kBrandColor.withOpacity(0.1) : Colors.transparent,
+                            color: isSelected
+                                ? kBrandColor.withOpacity(0.1)
+                                : Colors.transparent,
                             child: InkWell(
                               onTap: () {
-                                // Panggil Event untuk memilih transaksi
-                                context.read<DashboardBloc>().add(SelectReportTransaction(tx));
+                                context.read<DashboardBloc>().add(
+                                  SelectReportTransaction(tx),
+                                );
                               },
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                // Padding dipindahkan ke SINI (di dalam InkWell)
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 4,
+                                ),
                                 child: _SalesRowItem(
                                   receiptNumber: noStruk,
                                   time: timeStr,
@@ -532,7 +554,7 @@ class _SalesRowItem extends StatelessWidget {
       ),
     );
   }
-} 
+}
 
 // ================== ITEM REPORT CONTENT (TAB 1) ==================
 
@@ -686,7 +708,7 @@ class _ItemReportContent extends StatelessWidget {
                                 child: Text(
                                   item.productName,
                                   style: const TextStyle(
-                                    color: kTextDark, 
+                                    color: kTextDark,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -758,7 +780,7 @@ class _ItemReportContent extends StatelessWidget {
       },
     );
   }
-} 
+}
 
 // ================== EXPENDITURE REPORT ==================
 
@@ -781,13 +803,19 @@ class _ExpenditureReportContent extends StatelessWidget {
 
     if (picked != null) {
       if (isStart) {
-        bloc.add(ReportDateChanged(
+        bloc.add(
+          ReportDateChanged(
             startDate: picked,
-            endDate: state.reportEndDate ?? DateTime.now()));
+            endDate: state.reportEndDate ?? DateTime.now(),
+          ),
+        );
       } else {
-        bloc.add(ReportDateChanged(
+        bloc.add(
+          ReportDateChanged(
             startDate: state.reportStartDate ?? DateTime.now(),
-            endDate: picked));
+            endDate: picked,
+          ),
+        );
       }
     }
   }
@@ -821,7 +849,10 @@ class _ExpenditureReportContent extends StatelessWidget {
                 children: [
                   InkWell(
                     onTap: () => _selectDate(context, true),
-                    child: _DateFilterColumn(label: 'Start Date', value: startStr),
+                    child: _DateFilterColumn(
+                      label: 'Start Date',
+                      value: startStr,
+                    ),
                   ),
                   const SizedBox(width: 32),
                   InkWell(
@@ -840,27 +871,43 @@ class _ExpenditureReportContent extends StatelessWidget {
                 children: [
                   Expanded(
                     flex: 2,
-                    child: Text('Date',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600, color: kTextDark)),
+                    child: Text(
+                      'Date',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: kTextDark,
+                      ),
+                    ),
                   ),
                   Expanded(
                     flex: 4,
-                    child: Text('Notes',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600, color: kTextDark)),
+                    child: Text(
+                      'Notes',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: kTextDark,
+                      ),
+                    ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: Text('Created By',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600, color: kTextDark)),
+                    child: Text(
+                      'Created By',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: kTextDark,
+                      ),
+                    ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: Text('Amount',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600, color: kTextDark)),
+                    child: Text(
+                      'Amount',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: kTextDark,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -870,9 +917,10 @@ class _ExpenditureReportContent extends StatelessWidget {
               child: expenses.isEmpty
                   ? const Center(
                       child: Text(
-                      "No expense data available",
-                      style: TextStyle(color: kTextGrey),
-                    ))
+                        "No expense data available",
+                        style: TextStyle(color: kTextGrey),
+                      ),
+                    )
                   : ListView.separated(
                       itemCount: expenses.length,
                       separatorBuilder: (_, __) =>
@@ -895,7 +943,8 @@ class _ExpenditureReportContent extends StatelessWidget {
                         if (shift != null &&
                             shift['cashier'] != null &&
                             shift['cashier']['full_name'] != null) {
-                          displayName = shift['cashier']['full_name'].toString();
+                          displayName = shift['cashier']['full_name']
+                              .toString();
                         }
 
                         if (displayName == 'System' &&
@@ -906,40 +955,54 @@ class _ExpenditureReportContent extends StatelessWidget {
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 32, vertical: 12),
+                            horizontal: 32,
+                            vertical: 12,
+                          ),
                           child: Row(
                             children: [
                               Expanded(
                                 flex: 2,
-                                child: Text(dateStr,
-                                    style: const TextStyle(
-                                        color: kTextDark,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500)),
+                                child: Text(
+                                  dateStr,
+                                  style: const TextStyle(
+                                    color: kTextDark,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
                               Expanded(
                                 flex: 4,
-                                child: Text(exp['description'] ?? '-',
-                                    style: const TextStyle(
-                                        color: kTextDark,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600)),
+                                child: Text(
+                                  exp['description'] ?? '-',
+                                  style: const TextStyle(
+                                    color: kTextDark,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                               Expanded(
                                 flex: 2,
-                                child: Text(displayName,
-                                    style: const TextStyle(
-                                        color: kTextDark,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500)),
+                                child: Text(
+                                  displayName,
+                                  style: const TextStyle(
+                                    color: kTextDark,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
                               Expanded(
                                 flex: 2,
-                                child: Text(currency.format(amount),
-                                    style: const TextStyle(
-                                        color: kTextDark,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600)),
+                                child: Text(
+                                  currency.format(amount),
+                                  style: const TextStyle(
+                                    color: kTextDark,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -956,19 +1019,26 @@ class _ExpenditureReportContent extends StatelessWidget {
                   const Text(
                     'Total of Expense',
                     style: TextStyle(
-                        fontWeight: FontWeight.w600, color: kTextDark),
+                      fontWeight: FontWeight.w600,
+                      color: kTextDark,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Text(
                     currency.format(report?.totalExpense ?? 0),
                     style: const TextStyle(
-                        fontWeight: FontWeight.w500, color: kTextDark),
+                      fontWeight: FontWeight.w500,
+                      color: kTextDark,
+                    ),
                   ),
                   const Spacer(),
                   IconButton(
                     onPressed: () {},
-                    icon: const Icon(Icons.print,
-                        color: Color(0xFF26A645), size: 24),
+                    icon: const Icon(
+                      Icons.print,
+                      color: Color(0xFF26A645),
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   SizedBox(
@@ -978,7 +1048,9 @@ class _ExpenditureReportContent extends StatelessWidget {
                         backgroundColor: kBrandColor,
                         foregroundColor: kWhiteColor,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 26, vertical: 0),
+                          horizontal: 26,
+                          vertical: 0,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -987,7 +1059,9 @@ class _ExpenditureReportContent extends StatelessWidget {
                       child: const Text(
                         'Print Summary of Expense',
                         style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -1132,14 +1206,19 @@ class _SalesDetailCard extends StatelessWidget {
                 height: 52,
                 decoration: const BoxDecoration(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                  
-                  border: Border(bottom: BorderSide(color: kBorderColor, width: 1)),
-                ),  
+
+                  border: Border(
+                    bottom: BorderSide(color: kBorderColor, width: 1),
+                  ),
+                ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 alignment: Alignment.centerLeft,
                 child: const Text(
                   'Sales details',
-                  style: TextStyle(color: kTextDark, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: kTextDark,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
 
@@ -1150,7 +1229,11 @@ class _SalesDetailCard extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.receipt_long_outlined, color: kBrandColor, size: 48),
+                            Icon(
+                              Icons.receipt_long_outlined,
+                              color: kBrandColor,
+                              size: 48,
+                            ),
                             SizedBox(height: 12),
                             Text(
                               'Please select a transaction',
@@ -1166,8 +1249,12 @@ class _SalesDetailCard extends StatelessWidget {
               Container(
                 height: 70,
                 decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
-                  border: Border(top: BorderSide(color: kBorderColor, width: 1)),
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(12),
+                  ),
+                  border: Border(
+                    top: BorderSide(color: kBorderColor, width: 1),
+                  ),
                 ),
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: 24),
@@ -1182,10 +1269,12 @@ class _SalesDetailCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: tx == null ? null : () {
-                       // TODO: Implement Print Logic
-                       print("Print Receipt: ${tx['receipt_number']}");
-                    },
+                    onPressed: tx == null
+                        ? null
+                        : () {
+                            // TODO: Implement Print Logic
+                            print("Print Receipt: ${tx['receipt_number']}");
+                          },
                     child: const Text('Print receipt'),
                   ),
                 ),
@@ -1197,12 +1286,10 @@ class _SalesDetailCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailContent(Map<String, dynamic> tx, NumberFormat currency) {
-    // Parsing Data Aman
+ Widget _buildDetailContent(Map<String, dynamic> tx, NumberFormat currency) {
     final receiptNo = tx['receipt_number'] ?? '-';
-
     final paymentMethod = tx['payment_method'] ?? 'CASH';
-    
+
     String dateStr = '-';
     if (tx['transaction_time'] != null) {
       try {
@@ -1211,23 +1298,23 @@ class _SalesDetailCard extends StatelessWidget {
       } catch (_) {}
     }
 
-    // Parsing List Items
     final items = (tx['transaction_details'] as List?) ?? [];
 
-    // Helper Parse
     int parseAmount(dynamic val) {
       if (val == null) return 0;
-      return int.tryParse(val.toString().replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      return int.tryParse(val.toString().replaceAll(RegExp(r'[^0-9]'), '')) ??
+          0;
     }
 
-    // final subtotal = parseAmount(tx['subtotal']); // Tidak ditampilkan lagi sesuai request
     final discount = parseAmount(tx['total_discount']);
     final tax = parseAmount(tx['total_tax']);
     final total = parseAmount(tx['total_amount']);
+    
+    // [PERBAIKAN 1] Hitung Subtotal (Total - Pajak + Diskon)
+    final subtotal = total - tax + discount;
 
     return Column(
       children: [
-        // Info Struk
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -1242,7 +1329,7 @@ class _SalesDetailCard extends StatelessWidget {
         ),
         const Divider(height: 1, color: kBorderColor),
 
-        // --- List Produk (TATA LETAK DIUBAH DISINI) ---
+        // --- List Produk ---
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.all(16),
@@ -1253,59 +1340,56 @@ class _SalesDetailCard extends StatelessWidget {
               final name = item['product']?['product_name'] ?? 'Unknown Item';
               final qty = item['quantity'] ?? 0;
               final price = parseAmount(item['price_at_transaction']);
-              final itemTotal = price * qty; 
+              final itemTotal = price * qty;
 
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // KIRI: Nama Produk & Harga Total di bawahnya
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          name, 
+                          name,
                           style: const TextStyle(
-                            color: kTextDark, 
-                            fontSize: 14, 
-                            fontWeight: FontWeight.w600
-                          )
+                            color: kTextDark,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          currency.format(itemTotal), 
+                          currency.format(itemTotal),
                           style: const TextStyle(
-                            color: kTextGrey, // Warna abu-abu untuk harga
-                            fontSize: 13, 
-                            fontWeight: FontWeight.w500
-                          )
+                            color: kTextGrey,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  
-                  // KANAN: Qty dengan Label "Qty" di atasnya
                   Padding(
-                    padding: const EdgeInsets.only(left: 16, right: 6, bottom: 6),
+                    padding: const EdgeInsets.only(
+                      left: 16,
+                      right: 6,
+                      bottom: 6,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const Text(
-                          "Qty", 
-                          style: TextStyle(
-                            color: 
-                            kTextDark,
-                            fontSize: 13
-                          )
+                          "Qty",
+                          style: TextStyle(color: kTextDark, fontSize: 13),
                         ),
-                      const SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          "$qty", 
+                          "$qty",
                           style: const TextStyle(
-                            color:  kTextGrey,
-                            fontSize: 12, 
-                            fontWeight: FontWeight.bold
-                          )
+                            color: kTextGrey,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -1316,51 +1400,90 @@ class _SalesDetailCard extends StatelessWidget {
           ),
         ),
 
-
-        // --- Summary Financial (SUBTOTAL DIHAPUS) ---
+        // --- Summary Financial ---
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // _detailSummaryRow("Subtotal", currency.format(subtotal)), // <-- DIHAPUS
-              
+              // [PERBAIKAN 2] Tampilkan Baris Subtotal
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _detailSummaryRow(
+                  "Subtotal", 
+                  currency.format(subtotal)
+                ),
+              ),
+
               if (discount > 0)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 6), // Sesuaikan spacing
-                  child: _detailSummaryRow("Discount", "-${currency.format(discount)}", color: Colors.green),
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _detailSummaryRow(
+                    "Discount",
+                    "-${currency.format(discount)}",
+                    color: Colors.green,
+                  ),
                 ),
               if (tax > 0)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: _detailSummaryRow("Tax", "+${currency.format(tax)}"),
                 ),
-              
               const SizedBox(height: 8),
-              // Total
-              _detailSummaryRow("Total", currency.format(total), isBold: true, fontSize: 16),
+              _detailSummaryRow(
+                "Total",
+                currency.format(total),
+                isBold: true,
+                fontSize: 16,
+              ),
             ],
           ),
         ),
       ],
     );
   }
-
   Widget _detailHeaderRow(String label, String value, {bool isBold = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: const TextStyle(color: kTextGrey, fontSize: 12)),
-        Text(value, style: TextStyle(color: kTextDark, fontSize: 12, fontWeight: isBold ? FontWeight.w600 : FontWeight.w500)),
+        Text(
+          value,
+          style: TextStyle(
+            color: kTextDark,
+            fontSize: 12,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _detailSummaryRow(String label, String value, {bool isBold = false, Color? color, double fontSize = 13}) {
+  Widget _detailSummaryRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? color,
+    double fontSize = 13,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: kTextDark, fontSize: fontSize, fontWeight: isBold ? FontWeight.w600 : FontWeight.w400)),
-        Text(value, style: TextStyle(color: color ?? kTextDark, fontSize: fontSize, fontWeight: isBold ? FontWeight.bold : FontWeight.w500)),
+        Text(
+          label,
+          style: TextStyle(
+            color: kTextDark,
+            fontSize: fontSize,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color ?? kTextDark,
+            fontSize: fontSize,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
       ],
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 
 class SaveQueueDialog extends StatefulWidget {
   const SaveQueueDialog({Key? key}) : super(key: key);
@@ -180,7 +181,7 @@ class _SaveQueueDialogState extends State<SaveQueueDialog> {
                         Navigator.of(context).pop();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey.shade600,
+                        backgroundColor: Colors.red,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -209,7 +210,7 @@ class _SaveQueueDialogState extends State<SaveQueueDialog> {
                         });
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4A3AA0),
+                        backgroundColor: kBrandColor,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),

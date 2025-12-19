@@ -25,7 +25,7 @@ class _VoidModePageState extends State<VoidModePage> {
     return Scaffold(
       backgroundColor: kBackgroundColor,
       // [PERBAIKAN] Tambahkan ini agar background tidak gerak saat keyboard muncul
-      resizeToAvoidBottomInset: false, 
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -60,18 +60,16 @@ class _VoidHeaderBar extends StatelessWidget {
         children: [
           const SizedBox(width: 16),
           IconButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-            color: kBrandColor,
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back, size: 24),
+            color: Colors.black,
           ),
           const SizedBox(width: 4),
           const Text(
             'Void Mode',
             style: TextStyle(
               color: kBrandColor,
-              fontSize: 16,
+              fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -217,115 +215,105 @@ class _TransactionItem extends StatelessWidget {
               );
         },
         child: SizedBox(
-          height: 72,
+          height: 68,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
+                // 1. BAGIAN KIRI (Info Resi & Tanggal)
                 Expanded(
+                  flex: 3,
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         receiptNumber,
                         style: TextStyle(
-                          color: isVoided
-                              ? Colors.red
-                              : (isRequested ? Colors.orange : kTextDark),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          decoration: isVoided
-                              ? TextDecoration.lineThrough
-                              : null,
+                          color: kTextDark,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          decoration:
+                              isVoided ? TextDecoration.lineThrough : null,
                         ),
                       ),
-                      const SizedBox(height: 4),
-
-                      Row(
-                        children: [
-                          Text(
-                            formattedDate,
-                            style: const TextStyle(
-                              color: kTextGrey,
-                              fontSize: 11,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            currencyFormatter.format(totalAmount),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                              color: isVoided ? Colors.red : kTextDark,
-                              decoration: isVoided
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      if (isVoided)
-                        const Text(
-                          'VOIDED',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      else if (isRequested)
-                        const Text(
-                          'WAITING APPROVAL',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      const SizedBox(height: 6),
+                      Text(
+                        formattedDate,
+                        style: const TextStyle(
+                          color: kTextGrey,
+                          fontSize: 12,
                         ),
+                      ),
                     ],
                   ),
                 ),
 
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (!isVoided && !isRequested)
-                      InkWell(
-                        onTap: () {
-                          // Tampilkan Dialog dengan Barrier Ungu
-                          showDialog(
-                            context: context,
-                            barrierDismissible: false, // Tidak bisa klik luar
-                            barrierColor: kBrandColor.withOpacity(0.5), // Warna Ungu Transparan
-                            builder: (_) => BlocProvider.value(
-                              value: context.read<DashboardBloc>(), // Teruskan BLoC
-                              child: _VoidRequestDialog(
-                                transactionId: transaction['transaction_id'],
-                                receiptNumber: receiptNumber,
+                // 2. BAGIAN TENGAH (Harga - Rata Tengah)
+                Expanded(
+                  flex: 5,
+                  child: Center(
+                    child: Text(
+                      currencyFormatter.format(totalAmount),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isVoided ? kTextDark : kTextDark,
+                        decoration:
+                            isVoided ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 3. BAGIAN KANAN (Status / Tombol -> RATA TENGAH VERTIKAL & HORIZONTAL)
+                Expanded(
+                  flex: 1,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center, // Rata tengah horizontal
+                    mainAxisAlignment: MainAxisAlignment.center,   // [PERUBAHAN] Rata tengah vertikal (Sejajar Harga)
+                    children: [
+                      // --- STATUS ---
+                      if (isVoided)
+                        _buildStatusLabel('VOIDED', Colors.red)
+                      else if (isRequested)
+                        _buildStatusLabel('WAITING', Colors.orange),
+
+                      // --- TOMBOL DELETE ---
+                      // Karena tombol ini hanya muncul jika TIDAK ADA status (else),
+                      // maka MainAxisAlignment.center akan menaruhnya tepat di tengah.
+                      if (!isVoided && !isRequested)
+                        InkWell(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              barrierColor: kBrandColor.withOpacity(0.5),
+                              builder: (_) => BlocProvider.value(
+                                value: context.read<DashboardBloc>(),
+                                child: _VoidRequestDialog(
+                                  transactionId: transaction['transaction_id'],
+                                  receiptNumber: receiptNumber,
+                                ),
                               ),
+                            );
+                          },
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7F0FF),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          );
-                        },
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7F0FF),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.delete_outline,
-                            color: kBrandColor,
-                            size: 18,
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: kBrandColor,
+                              size: 18,
+                            ),
                           ),
                         ),
-                      )
-                    else
-                      const SizedBox(height: 32, width: 32),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -334,8 +322,27 @@ class _TransactionItem extends StatelessWidget {
       ),
     );
   }
-}
 
+  Widget _buildStatusLabel(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
 // ================== DETAIL TRANSAKSI (KANAN) ==================
 
 class _RightCartPreview extends StatelessWidget {
@@ -381,10 +388,17 @@ class _RightCartPreview extends StatelessWidget {
         final items =
             (selected['items'] ?? selected['transaction_details'] ?? [])
                 as List<dynamic>;
+        
+        final receiptNumber = selected['receipt_number'] ?? '';
         final rawAmount = selected['total_amount'].toString();
         final totalAmount =
             int.tryParse(rawAmount.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-        final receiptNumber = selected['receipt_number'] ?? '';
+
+        final rawTax = selected['total_tax'] ?? selected['tax_amount'] ?? '0';
+        final taxAmount = 
+            int.tryParse(rawTax.toString().replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+        final subtotalAmount = totalAmount - taxAmount;
 
         final status = selected['status'];
         final isVoided = status == 'VOIDED';
@@ -394,93 +408,116 @@ class _RightCartPreview extends StatelessWidget {
           children: [
             _buildHeader(
               isVoided
-                  ? 'Detail (VOIDED)'
-                  : (isRequested ? 'Detail (REQUESTED)' : 'Transaction Detail'),
+                  ? 'Transaction Detail '
+                  : (isRequested ? 'Transaction Detail' : 'Transaction Detail'),
             ),
             const Divider(height: 1, thickness: 1, color: kBorderColor),
 
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.all(16),
+                // [ATUR JARAK ATAS BAWAH LIST ITEM DISINI]
+                // Ubah nilai top dan bottom sesuai keinginan
+                padding: const EdgeInsets.only(top: 2, bottom:2), 
+                
                 itemCount: items.length,
-                separatorBuilder: (_, __) => const Divider(),
+                separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: kBorderColor,
+                ),
                 itemBuilder: (context, index) {
                   final item = items[index];
-                  final productName =
-                      item['product_name'] ??
-                      item['product']?['product_name'] ??
-                      'Item';
+                  final productName = item['product_name'] ??
+                      item['product']?['product_name'] ?? 'Item';
                   final qty = item['quantity'] ?? 0;
                   final priceRaw =
                       item['price_at_transaction'] ?? item['unit_price'] ?? 0;
                   final price = int.tryParse(priceRaw.toString()) ?? 0;
                   final subtotal = qty * price;
 
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              productName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: isVoided ? Colors.grey : kTextDark,
-                                decoration: isVoided
-                                    ? TextDecoration.lineThrough
-                                    : null,
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                productName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: isVoided ? Colors.grey : kTextDark,
+                                  decoration: isVoided
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
                               ),
-                            ),
-                            Text(
-                              ' ${currencyFormatter.format(price)}',
-                              style: const TextStyle(
-                                color: kTextGrey,
-                                fontSize: 11,
+                              Text(
+                                ' ${currencyFormatter.format(price)}',
+                                style: const TextStyle(
+                                  color: kTextGrey,
+                                  fontSize: 11,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Qty',
-                              style: TextStyle(fontSize: 10, color: kTextGrey),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 165.0),
+                          child: SizedBox(
+                            width: 40,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  'Qty',
+                                  style: TextStyle(
+                                      fontSize: 11, color: kTextDark),
+                                ),
+                                Text(
+                                  '$qty',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isVoided ? Colors.red : kTextDark,
+                                    decoration: isVoided
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '$qty',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isVoided ? Colors.red : kTextDark,
-                              ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 90,
+                          child: Text(
+                            currencyFormatter.format(subtotal),
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: isVoided ? Colors.red : kTextDark,
+                              decoration: isVoided
+                                  ? TextDecoration.lineThrough
+                                  : null,
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-
-                      Text(
-                        currencyFormatter.format(subtotal),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: isVoided ? Colors.red : kTextDark,
-                          decoration: isVoided
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   );
                 },
               ),
             ),
 
+            // SUMMARY PANEL
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              // Padding horizontal 0 agar divider full width
+              padding: const EdgeInsets.only(top: 12, bottom: 16),
               color: isVoided
                   ? const Color(0xFFFFF0F0)
                   : (isRequested
@@ -491,19 +528,40 @@ class _RightCartPreview extends StatelessWidget {
                 children: [
                   _row('Receipt No', receiptNumber),
                   _row('Payment', selected['payment_method'] ?? '-'),
+                  
                   if (isVoided || isRequested)
                     _row(
                       'Reason',
                       selected['void_reason'] ?? '-',
                       isBold: true,
                     ),
+
                   const SizedBox(height: 8),
-                  const Divider(),
+                  
+                  _row(
+                    'Subtotal', 
+                    currencyFormatter.format(subtotalAmount),
+                    isRed: isVoided
+                  ),
+
+                  if (taxAmount > 0)
+                    _row(
+                      'Tax', 
+                      '+${currencyFormatter.format(taxAmount)}',
+                      isRed: isVoided 
+                    ),
+
+                  const SizedBox(height: 8),
+                  
+                  const Divider(thickness: 1, height: 1, color: Colors.grey),
+                  const SizedBox(height: 8),
+                  
                   _row(
                     isVoided ? 'Total (VOID)' : 'Total',
                     currencyFormatter.format(totalAmount),
                     isBold: true,
                     isRed: isVoided,
+                    fontSize: 14,
                   ),
                 ],
               ),
@@ -516,33 +574,38 @@ class _RightCartPreview extends StatelessWidget {
 
   Widget _buildHeader(String title) {
     return Container(
-      height: 48,
-      alignment: Alignment.centerLeft,
+      height: 68, // Tinggi fix header
+      // [PENTING] Alignment ini memastikan teks ada di tengah vertikal (atas-bawah)
+      alignment: Alignment.centerLeft, 
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Text(
         title,
         style: const TextStyle(
           color: kTextDark,
           fontWeight: FontWeight.w600,
-          fontSize: 15,
+          fontSize: 16,
         ),
       ),
     );
   }
 
-  Widget _row(String l, String v, {bool isBold = false, bool isRed = false}) {
+  Widget _row(String l, String v, {
+    bool isBold = false, 
+    bool isRed = false,
+    double fontSize = 12,
+  }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(l, style: const TextStyle(color: kTextGrey, fontSize: 12)),
+          Text(l, style: TextStyle(color: kTextGrey, fontSize: fontSize)),
           Text(
             v,
             style: TextStyle(
               color: isRed ? Colors.red : kTextDark,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              fontSize: 12,
+              fontSize: fontSize,
               decoration: isRed && l != 'Reason'
                   ? TextDecoration.lineThrough
                   : null,
@@ -553,7 +616,6 @@ class _RightCartPreview extends StatelessWidget {
     );
   }
 }
-
 // ================== DIALOG REQUEST VOID (FIXED OVERFLOW) ==================
 
 class _VoidRequestDialog extends StatefulWidget {
@@ -582,9 +644,7 @@ class _VoidRequestDialogState extends State<_VoidRequestDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 420),
         padding: const EdgeInsets.all(24),
@@ -630,10 +690,7 @@ class _VoidRequestDialogState extends State<_VoidRequestDialog> {
                 style: const TextStyle(color: Colors.black87),
                 decoration: InputDecoration(
                   hintText: 'Enter the notes',
-                  hintStyle: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
+                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Colors.grey[300]!),
@@ -700,11 +757,11 @@ class _VoidRequestDialogState extends State<_VoidRequestDialog> {
 
                         // Send Request Event
                         context.read<DashboardBloc>().add(
-                              RequestVoidTransaction(
-                                transactionId: widget.transactionId,
-                                reason: notes,
-                              ),
-                            );
+                          RequestVoidTransaction(
+                            transactionId: widget.transactionId,
+                            reason: notes,
+                          ),
+                        );
 
                         Navigator.of(context).pop();
 

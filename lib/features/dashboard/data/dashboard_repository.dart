@@ -456,6 +456,7 @@ class DashboardRepository {
   }
 
   // 12. Get Item Report (WAJIB KIRIM CASHIER ID)
+  // 12. Get Item Report (WAJIB KIRIM CASHIER ID)
   Future<List<ItemReportModel>> getItemReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -471,16 +472,17 @@ class DashboardRepository {
 
       if (startDate != null && endDate != null) {
         final startStr = startDate.toIso8601String().split('T')[0];
-        // [PERBAIKAN] Sama, tambahkan jam akhir
+        // [PERBAIKAN] Tambahkan jam akhir
         final endStr = "${endDate.toIso8601String().split('T')[0]} 23:59:59";
         params.add('tanggalMulai=$startStr');
         params.add('tanggalSelesai=$endStr');
       }
 
-      if (onlyVoid)
+      if (onlyVoid) {
         params.add('status=VOIDED,VOID_REQUESTED');
-      else
+      } else {
         params.add('status=COMPLETED');
+      }
 
       // [WAJIB] Kirim cashierId
       if (cashierId != null) {
@@ -497,14 +499,19 @@ class DashboardRepository {
       );
 
       print("📥 [REPO-ITEM] Status: ${response.statusCode}");
+      // Uncomment baris ini untuk melihat bentuk asli data dari backend di debug console
+      // print("📦 [REPO-ITEM] Body: ${response.body}"); 
 
       if (response.statusCode == 200) {
-        // Backend mengirim List langsung [...] untuk item report
-        final dynamic data = jsonDecode(response.body);
-        if (data is List) {
-          return data.map((e) => ItemReportModel.fromJson(e)).toList();
-        }
-        return [];
+        final dynamic body = jsonDecode(response.body);
+
+        // [PERBAIKAN UTAMA DI SINI]
+        // Cek apakah data dibungkus dalam key 'data' atau langsung List
+        final List<dynamic> data = (body is Map && body.containsKey('data'))
+            ? body['data']
+            : (body is List ? body : []);
+
+        return data.map((e) => ItemReportModel.fromJson(e)).toList();
       }
       return [];
     } catch (e) {
@@ -512,7 +519,6 @@ class DashboardRepository {
       return [];
     }
   }
-
   // 13. Get Expense Report (WAJIB KIRIM CASHIER ID)
   Future<ExpenseReportModel> getExpenseReport({
     DateTime? startDate,

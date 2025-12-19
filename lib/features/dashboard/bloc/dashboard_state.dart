@@ -73,6 +73,9 @@ class DashboardState extends Equatable {
   // [TAMBAHKAN FIELD INI]
   final Map<String, dynamic>? selectedReportTransaction;
 
+  // [BARU: Status Koneksi Printer]
+  final bool isPrinterConnected; 
+
   final String? errorMessage;
 
   const DashboardState({
@@ -110,7 +113,8 @@ class DashboardState extends Equatable {
     this.reportEndDate,
     this.isReportVoidFilter = false,
     this.paymentMethods = const [],
-    this.selectedReportTransaction, // Tambahkan di constructor
+    this.selectedReportTransaction, 
+    this.isPrinterConnected = false, // Default Merah (Belum konek)
     this.errorMessage,
   });
 
@@ -158,6 +162,10 @@ class DashboardState extends Equatable {
     bool? isReportVoidFilter,
     List<PaymentMethodModel>? paymentMethods,
     Map<String, dynamic>? selectedReportTransaction,
+    
+    // Parameter Printer
+    bool? isPrinterConnected,
+    
     String? errorMessage,
   }) {
     return DashboardState(
@@ -199,6 +207,7 @@ class DashboardState extends Equatable {
       isReportVoidFilter: isReportVoidFilter ?? this.isReportVoidFilter,
       paymentMethods: paymentMethods ?? this.paymentMethods,
       selectedReportTransaction: selectedReportTransaction ?? this.selectedReportTransaction,
+      isPrinterConnected: isPrinterConnected ?? this.isPrinterConnected,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -235,7 +244,8 @@ class DashboardState extends Equatable {
     reportEndDate,
     isReportVoidFilter,
     paymentMethods,
-    selectedReportTransaction, // Jangan lupa daftarkan di props
+    selectedReportTransaction, 
+    isPrinterConnected, // [JANGAN LUPA: Tambahkan ke Props]
     errorMessage,
   ];
 }

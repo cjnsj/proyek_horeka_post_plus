@@ -1,4 +1,7 @@
+import 'dart:async'; // [PENTING] Untuk StreamSubscription
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_pos_printer_platform_image_3/flutter_pos_printer_platform_image_3.dart'; // [PENTING] Untuk BTStatus
+import 'package:horeka_post_plus/features/dashboard/services/printer_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
@@ -10,15 +13,19 @@ import 'package:horeka_post_plus/features/dashboard/data/queue_model.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final DashboardRepository repository;
+  
+  // [INTEGRASI PRINTER]
+  final PrinterService printerService = PrinterService();
+  StreamSubscription? _printerSubscription; // Untuk memantau status koneksi
 
   // [PERBAIKAN] Inisialisasi state dengan tanggal hari ini agar tidak null
   DashboardBloc({required this.repository})
-    : super(
-        DashboardState(
-          reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
-          reportEndDate: DateTime.now(),
-        ),
-      ) {
+      : super(
+          DashboardState(
+            reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
+            reportEndDate: DateTime.now(),
+          ),
+        ) {
     // --- Session / Lifecycle ---
     on<DashboardStarted>(_onDashboardStarted);
     on<SaveDashboardSession>(_onSaveDashboardSession);
@@ -26,7 +33,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     // --- Menu & Category ---
     on<FetchMenuRequested>(_onFetchMenuRequested);
     on<SelectCategory>(_onSelectCategory);
-    on<SearchMenuChanged>(_onSearchMenuChanged); // [PENTING: INI YANG KURANG TADI]
+    on<SearchMenuChanged>(_onSearchMenuChanged);
 
     // --- Cart ---
     on<AddToCart>(_onAddToCart);
@@ -56,8 +63,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     // --- Report ---
     on<FetchAllReportsRequested>(_onFetchAllReportsRequested);
     on<ToggleReportVoidFilter>(_onToggleReportVoidFilter);
-    // [PENTING] Handler ini TETAP ADA
     on<ReportDateChanged>(_onReportDateChanged);
+    on<SelectReportTransaction>(_onSelectReportTransaction);
+    on<ResetReportSelection>(_onResetReportSelection);
 
     // --- Tax Settings ---
     on<FetchTaxSettingsRequested>(_onFetchTaxSettings);
@@ -65,11 +73,63 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     // --- Payment Methods ---
     on<FetchPaymentMethodsRequested>(_onFetchPaymentMethodsRequested);
 
-    // Di dalam Constructor DashboardBloc:
-    on<SelectReportTransaction>(_onSelectReportTransaction);
+    // --- Printer Handlers ---
+    on<PrintReceiptRequested>(_onPrintReceiptRequested);
+    
+    // Handler untuk update status koneksi printer (Hijau/Merah)
+    on<PrinterConnectionUpdated>((event, emit) {
+      emit(state.copyWith(isPrinterConnected: event.isConnected));
+    });
 
-    // Di dalam Constructor:
-    on<ResetReportSelection>(_onResetReportSelection);
+    // Mulai mendengarkan status printer saat Bloc dibuat
+    _initPrinterListener();
+  }
+
+  // ================= PRINTER LISTENER & METHODS =================
+
+  void _initPrinterListener() {
+    // Listen ke stream dari PrinterService
+    _printerSubscription = printerService.bluetoothStatusStream.listen((status) {
+      // BTStatus.connected dari package flutter_pos_printer...
+      final isConnected = (status == BTStatus.connected);
+      add(PrinterConnectionUpdated(isConnected));
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _printerSubscription?.cancel(); // Wajib cancel stream agar tidak memory leak
+    return super.close();
+  }
+
+  // Method Handler: Print Receipt
+  Future<void> _onPrintReceiptRequested(
+    PrintReceiptRequested event,
+    Emitter<DashboardState> emit,
+  ) async {
+    try {
+      // Pastikan ada item untuk dicetak. 
+      // Jika cart kosong (misal setelah transaksi sukses), logika ini mungkin perlu 
+      // mengambil data dari transaksi terakhir, tapi untuk saat ini kita pakai state.cartItems
+      // atau logika generateReceipt harus dimodifikasi untuk menerima list item spesifik.
+      
+      final bytes = await printerService.generateReceipt(
+        items: state.cartItems, 
+        subtotal: state.subtotal,
+        tax: state.taxValue,
+        discount: state.autoDiscount + state.manualDiscount,
+        total: state.finalTotalAmount,
+        cashierName: "Kasir", 
+        transactionId: "TRX-${DateTime.now().millisecondsSinceEpoch}",
+      );
+
+      // Kirim ke printer
+      await printerService.printReceipt(bytes);
+      
+    } catch (e) {
+      print("Print Error: $e");
+      // Opsional: Emit error state khusus printer jika perlu
+    }
   }
 
   // ================= SESSION HANDLERS =================
@@ -180,6 +240,32 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(
       state.copyWith(selectedCategory: selected, filteredProducts: filtered),
     );
+  }
+
+  void _onSearchMenuChanged(
+    SearchMenuChanged event,
+    Emitter<DashboardState> emit,
+  ) {
+    final query = event.query.toLowerCase();
+    final category = state.selectedCategory;
+
+    // 1. Ambil list dasar berdasarkan kategori saat ini
+    List<ProductModel> baseList;
+    if (category == 'Semua') {
+      baseList = state.products;
+    } else {
+      baseList = state.products.where((p) => p.category == category).toList();
+    }
+
+    // 2. Filter berdasarkan teks pencarian
+    if (query.isEmpty) {
+      emit(state.copyWith(filteredProducts: baseList));
+    } else {
+      final filtered = baseList.where((p) {
+        return p.name.toLowerCase().contains(query);
+      }).toList();
+      emit(state.copyWith(filteredProducts: filtered));
+    }
   }
 
   // ================= CART HANDLERS =================
@@ -333,6 +419,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       emit(
         state.copyWith(
           status: DashboardStatus.transactionSuccess,
+          // Catatan: Cart dikosongkan di sini. 
+          // Jika print dipanggil setelah ini, state.cartItems kosong.
+          // Idealnya, print dilakukan sebelum clear atau gunakan data transaksi.
           cartItems: [],
           clearEditingQueue: true,
           clearPromoCode: true,
@@ -584,9 +673,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         ),
       ]);
 
-      // [DEBUG] Cek Data Masuk
-      // (Opsional: Anda bisa tambahkan print di sini untuk debug)
-
       emit(
         state.copyWith(
           reportStatus: DashboardStatus.success,
@@ -662,7 +748,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
   }
 
-  // [TAMBAHKAN FUNGSI HANDLER INI DI BAWAH]
   void _onSelectReportTransaction(
     SelectReportTransaction event,
     Emitter<DashboardState> emit,
@@ -670,38 +755,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(state.copyWith(selectedReportTransaction: event.transaction));
   }
 
-  // [TAMBAHAN] Method Handler
   void _onResetReportSelection(
     ResetReportSelection event,
     Emitter<DashboardState> emit,
   ) {
     // Set selectedReportTransaction menjadi null agar UI kembali ke placeholder
     emit(state.copyWith(selectedReportTransaction: null));
-  }
-
-  void _onSearchMenuChanged(
-    SearchMenuChanged event,
-    Emitter<DashboardState> emit,
-  ) {
-    final query = event.query.toLowerCase();
-    final category = state.selectedCategory;
-
-    // 1. Ambil list dasar berdasarkan kategori saat ini
-    List<ProductModel> baseList;
-    if (category == 'Semua') {
-      baseList = state.products;
-    } else {
-      baseList = state.products.where((p) => p.category == category).toList();
-    }
-
-    // 2. Filter berdasarkan teks pencarian
-    if (query.isEmpty) {
-      emit(state.copyWith(filteredProducts: baseList));
-    } else {
-      final filtered = baseList.where((p) {
-        return p.name.toLowerCase().contains(query);
-      }).toList();
-      emit(state.copyWith(filteredProducts: filtered));
-    }
   }
 }

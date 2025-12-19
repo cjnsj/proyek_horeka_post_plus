@@ -177,23 +177,24 @@ class _PaymentPageState extends State<PaymentPage> {
                 const SizedBox(height: 32),
                 Row(
                   children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey.shade600,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ),
+                   Expanded(
+  child: ElevatedButton(
+    onPressed: () => Navigator.of(context).pop(),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.red,  // [UBAH INI] dari Colors.black87 menjadi Colors.red
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      elevation: 0,
+    ),
+    child: const Text(
+      'Cancel',
+      style: TextStyle(color: Colors.white),
+    ),
+  ),
+),
+
                     const SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton(
@@ -206,7 +207,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4A3AA0),
+                          backgroundColor: kBrandColor,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -234,10 +235,22 @@ class _PaymentPageState extends State<PaymentPage> {
     return BlocConsumer<DashboardBloc, DashboardState>(
       listener: (context, state) {
         if (state.status == DashboardStatus.transactionSuccess) {
+          // [TAMBAHAN] Trigger Print Otomatis saat Transaksi Sukses
+          context.read<DashboardBloc>().add(const PrintReceiptRequested());
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Transaksi Berhasil! Mencetak struk...'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Colors.green,
+            ),
+          );
+
           showDialog(
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
+              backgroundColor: Colors.white, // Tambahkan ini
               title: const Icon(
                 Icons.check_circle,
                 color: Colors.green,
@@ -246,7 +259,11 @@ class _PaymentPageState extends State<PaymentPage> {
               content: const Text(
                 'Pembayaran Berhasil!',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black, // Tambahkan ini
+                ),
               ),
               actions: [
                 TextButton(
@@ -254,7 +271,10 @@ class _PaymentPageState extends State<PaymentPage> {
                     Navigator.of(ctx).pop();
                     Navigator.of(context).pop();
                   },
-                  child: const Text('OK'),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(color: kBrandColor), // Tambahkan ini
+                  ),
                 ),
               ],
             ),
@@ -312,7 +332,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           icon: const Icon(
                             Icons.arrow_back,
                             color: Colors.black,
-                            size: 32,
+                            size: 24,
                           ),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
@@ -322,21 +342,42 @@ class _PaymentPageState extends State<PaymentPage> {
                         const Text(
                           'Pembayaran',
                           style: TextStyle(
-                            color: Color(0xFF4A3AA0),
-                            fontSize: 24,
+                            color:kBrandColor,
+                            fontSize: 20,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         const Spacer(),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.print,
-                            color: Colors.green,
-                            size: 28,
-                          ),
-                          onPressed: () {}, // TODO: Print logic
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                        // [MODIFIKASI] Indikator Status Printer (Hijau/Merah)
+                        BlocBuilder<DashboardBloc, DashboardState>(
+                          buildWhen: (previous, current) =>
+                              previous.isPrinterConnected !=
+                              current.isPrinterConnected,
+                          builder: (context, state) {
+                            return IconButton(
+                              icon: Icon(
+                                Icons.print,
+                                // Warna berubah otomatis sesuai state koneksi
+                                color: state.isPrinterConnected
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 28,
+                              ),
+                              onPressed: () {
+                                // Jika merah, beri tahu user
+                                if (!state.isPrinterConnected) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Printer belum terhubung!'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -535,92 +576,148 @@ class _PaymentPageState extends State<PaymentPage> {
                                 ),
                                 const SizedBox(height: 8),
 
-                                // 2. PROMO
-                                if (promos.isNotEmpty)
-                                  ...promos.map(
-                                    (promo) => Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 16,
-                                      ),
-                                      child: _buildSummaryRow(
-                                        promo.name,
-                                        promo.amount.toDouble(),
-                                        isNegative: true,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                  )
-                                else if (state.discountAmount > 0)
-                                  Padding(
+                               // 2. PROMO (AUTO DARI SERVER)
+                              if (promos.isNotEmpty)
+                                ...promos.map(
+                                  (promo) => Padding(
                                     padding: const EdgeInsets.only(bottom: 16),
                                     child: _buildSummaryRow(
-                                      'Discount',
-                                      state.discountAmount.toDouble(),
+                                      '', // Kosongkan label biasa
+                                      promo.amount.toDouble(),
                                       isNegative: true,
-                                      color: Colors.green,
+                                      // [LOGIC WARNA-WARNI]
+                                      customLabel: Text.rich(
+                                        TextSpan(
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          children: [
+                                            const TextSpan(
+                                              text: 'Discount ',
+                                              style: TextStyle(color: Colors.black87), // Hitam
+                                            ),
+                                            TextSpan(
+                                              text: '(${promo.name})',
+                                              style: const TextStyle(color: Colors.green), // Hijau
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      valueColor: Colors.black, // Harga Hijau
                                     ),
                                   ),
-
-                                // 3. TAX
-                                _buildSummaryRow(
-                                  state.taxPercentage > 0
-                                      ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)'
-                                      : 'Tax',
-                                  tax.toDouble(),
-                                  isPositive: true,
-                                  color: Colors.red,
-                                ),
-
-                                const SizedBox(height: 8),
-
-                                // 4. TOTAL
-                                _buildSummaryRow(
-                                  'Total',
-                                  total.toDouble(),
-                                  isBold: true,
-                                ),
-
-                                // ==========================================
-                                // [TAMBAHAN] TOTAL PAID & CHANGES JIKA CASH
-                                // ==========================================
-                                if (selectedPaymentMethodCode == 'CASH') ...[
-                                  const SizedBox(height: 12),
-                                  Builder(
-                                    builder: (context) {
-                                      // Ambil input uang dari controller
-                                      String cleanText = _paymentController.text
-                                          .replaceAll(RegExp(r'[^0-9]'), '');
-                                      double inputCash =
-                                          double.tryParse(cleanText) ?? 0;
-
-                                      // [LOGIC KEMBALIAN]
-                                      // Jika uang kurang dari total, kembalian = 0
-                                      // Jika uang pas/lebih, hitung selisihnya
-                                      double change =
-                                          (inputCash < total.toDouble())
-                                          ? 0
-                                          : (inputCash - total.toDouble());
-
-                                      return Column(
-                                        children: [
-                                          _buildSummaryRow(
-                                            'Total Paid',
-                                            inputCash,
-                                            // Warna Biru Brand
-                                            color: const Color(0xFF4A3AA0),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          _buildSummaryRow(
-                                            'Changes',
-                                            change,
-                                            // Warna Netral (Hitam)
-                                            color: Colors.red,
-                                          ),
-                                        ],
-                                      );
-                                    },
+                                )
+                              // 3. MANUAL DISCOUNT
+                              else if (state.discountAmount > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: _buildSummaryRow(
+                                    'Discount',
+                                    state.discountAmount.toDouble(),
+                                    isNegative: true,
+                                    labelColor: Colors.black87, // Label Hitam
+                                    valueColor: Colors.black,   // Harga Hijau
                                   ),
-                                ],
+                                ),
+
+                              // 4. TAX (PAJAK)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 0),
+                                child: state.taxPercentage > 0
+                                    ? _buildSummaryRow(
+                                        '', // Kosongkan label string
+                                        tax.toDouble(),
+                                        isPositive: true,
+                                        customLabel: Text.rich(
+                                          TextSpan(
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            children: [
+                                              const TextSpan(
+                                                text: 'Tax ',
+                                                style: TextStyle(color: Colors.black), // Hitam
+                                              ),
+                                              TextSpan(
+                                                text: '(${state.taxPercentage.toStringAsFixed(0)}%)',
+                                                style: const TextStyle(color: Colors.black), // Hijau
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        valueColor: Colors.black, // Harga Hijau
+                                      )
+                                    : _buildSummaryRow(
+                                        'Tax',
+                                        tax.toDouble(),
+                                        isPositive: true,
+                                        labelColor: Colors.black,
+                                        valueColor: Colors.black
+                                      ),
+                              ),
+
+
+                              // ===========================================
+                              // MASUKKAN KODE TOTAL DI SINI
+                              // ===========================================
+                              const SizedBox(height: 8),
+                              _buildSummaryRow(
+                                'Total',
+                                total.toDouble(),
+                                isBold: true,
+                                labelColor: Colors.black87,
+                                valueColor: Colors.black87,
+                              ),
+                                /// ==========================================
+                              // [TAMBAHAN] TOTAL PAID & CHANGES JIKA CASH
+                              // ==========================================
+                              if (selectedPaymentMethodCode == 'CASH') ...[
+                                const SizedBox(height: 12),
+                                Builder(
+                                  builder: (context) {
+                                    // Ambil input uang dari controller
+                                    String cleanText = _paymentController.text
+                                        .replaceAll(RegExp(r'[^0-9]'), '');
+                                    double inputCash =
+                                        double.tryParse(cleanText) ?? 0;
+
+                                    // [LOGIC KEMBALIAN]
+                                    double change =
+                                        (inputCash < total.toDouble())
+                                            ? 0
+                                            : (inputCash - total.toDouble());
+                                    
+                                    // Logic warna kembalian (Merah jika kurang, Hijau jika pas/lebih)
+                                    final isMoneyEnough = inputCash >= total.toDouble();
+
+                                    return Column(
+                                      children: [
+                                        // 1. TOTAL PAID
+                                        _buildSummaryRow(
+                                          'Total Paid',
+                                          inputCash,
+                                          labelColor: Colors.black87, // Label Hitam
+                                          valueColor: kBrandColor,    // Harga Biru Brand
+                                        ),
+                                        
+                                        const SizedBox(height: 8),
+                                        
+                                        // 2. CHANGES
+                                        _buildSummaryRow(
+                                          'Changes',
+                                          change,
+                                          labelColor: Colors.black87, // Label Hitam
+                                          valueColor: isMoneyEnough 
+                                              ? Colors.red  // Hijau jika uang cukup
+                                              : Colors.red,   // Merah jika uang kurang (opsional)
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
 
                                 // ==========================================
                                 const Spacer(flex: 12),
@@ -725,9 +822,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                           : () =>
                                                 _processPayment(context, total),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF4A3AA0,
-                                        ),
+                                        backgroundColor: kBrandColor,
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             12,
@@ -810,29 +905,39 @@ class _PaymentPageState extends State<PaymentPage> {
     bool isNegative = false,
     bool isPositive = false,
     bool isBold = false,
-    Color? color,
+    Widget? customLabel, // [BARU] Untuk teks kombinasi warna
+    Color? labelColor,   // [BARU] Warna default label
+    Color? valueColor,   // [BARU] Warna khusus untuk harga
   }) {
     String prefix = '';
-    if (isNegative && amount > 0) prefix = '-';
-    if (isPositive && amount > 0) prefix = '+';
+    if (isNegative && amount > 0) prefix = '- ';
+    if (isPositive && amount > 0) prefix = '+ ';
+
+    // Style dasar
+    final baseStyle = TextStyle(
+      fontSize: isBold ? 18 : 16,
+      fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+      color: Colors.black87,
+    );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: isBold ? 18 : 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: color ?? Colors.black87,
-          ),
-        ),
+        // BAGIAN KIRI (LABEL)
+        // Jika ada customLabel (RichText), pakai itu. Jika tidak, pakai Text biasa.
+        customLabel ??
+            Text(
+              label,
+              style: baseStyle.copyWith(
+                color: labelColor ?? Colors.black87,
+              ),
+            ),
+
+        // BAGIAN KANAN (HARGA)
         Text(
           '$prefix${currencyFormat.format(amount)}',
-          style: TextStyle(
-            fontSize: isBold ? 18 : 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: color ?? Colors.black87,
+          style: baseStyle.copyWith(
+            color: valueColor ?? Colors.black87, // Gunakan warna khusus jika ada
           ),
         ),
       ],

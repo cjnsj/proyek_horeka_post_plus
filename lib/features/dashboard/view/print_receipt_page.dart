@@ -1,13 +1,36 @@
+import 'dart:async';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_pos_printer_platform_image_3/flutter_pos_printer_platform_image_3.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
+import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
+import 'package:horeka_post_plus/features/dashboard/data/saved_printer.dart';
+import 'package:horeka_post_plus/features/dashboard/services/printer_storage_service.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
+import 'package:intl/intl.dart';
 
-class PrintReceiptPage extends StatelessWidget {
+class PrintReceiptPage extends StatefulWidget {
   const PrintReceiptPage({super.key});
+
+  @override
+  State<PrintReceiptPage> createState() => _PrintReceiptPageState();
+}
+
+class _PrintReceiptPageState extends State<PrintReceiptPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Reset pilihan saat halaman dibuka
+    context.read<DashboardBloc>().add(ResetReportSelection());
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackgroundColor,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -17,8 +40,8 @@ class PrintReceiptPage extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               boxShadow: kCardShadow,
             ),
-            child: Column(
-              children: const [
+            child: const Column(
+              children: [
                 _PrintReceiptHeaderBar(),
                 Divider(height: 1, thickness: 1, color: kBorderColor),
                 Expanded(child: _PrintReceiptBody()),
@@ -31,8 +54,31 @@ class PrintReceiptPage extends StatelessWidget {
   }
 }
 
-class _PrintReceiptHeaderBar extends StatelessWidget {
+class _PrintReceiptHeaderBar extends StatefulWidget {
   const _PrintReceiptHeaderBar();
+
+  @override
+  State<_PrintReceiptHeaderBar> createState() => _PrintReceiptHeaderBarState();
+}
+
+class _PrintReceiptHeaderBarState extends State<_PrintReceiptHeaderBar> {
+  final PrinterStorageService _printerStorage = PrinterStorageService();
+  bool _isPrinterReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPrinterStatus();
+  }
+
+  Future<void> _checkPrinterStatus() async {
+    final selectedId = await _printerStorage.loadSelectedPrinter();
+    if (mounted) {
+      setState(() {
+        _isPrinterReady = selectedId != null;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,25 +88,40 @@ class _PrintReceiptHeaderBar extends StatelessWidget {
         children: [
           const SizedBox(width: 16),
           IconButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-            color: kBrandColor,
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back, size: 24),
+            color: Colors.black,
           ),
           const SizedBox(width: 4),
           const Text(
             'Print Receipt',
             style: TextStyle(
               color: kBrandColor,
-              fontSize: 16,
+              fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
           ),
           const Spacer(),
           IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.print, color: kBrandColor, size: 22),
+            onPressed: () {
+              _checkPrinterStatus();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _isPrinterReady
+                        ? 'Printer is ready!'
+                        : 'No printer selected. Please go to Settings.',
+                  ),
+                  backgroundColor: _isPrinterReady ? Colors.green : Colors.red,
+                ),
+              );
+            },
+            icon: Icon(
+              Icons.print,
+              color: _isPrinterReady ? Colors.green : Colors.red,
+              size: 22,
+            ),
+            tooltip: _isPrinterReady ? "Printer Ready" : "No Printer Selected",
           ),
           const SizedBox(width: 16),
         ],
@@ -74,8 +135,8 @@ class _PrintReceiptBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: const [
+    return const Row(
+      children: [
         Expanded(flex: 48, child: _LeftTransactionList()),
         VerticalDivider(width: 1, thickness: 1, color: kBorderColor),
         Expanded(flex: 52, child: _RightCartDetail()),
@@ -84,7 +145,7 @@ class _PrintReceiptBody extends StatelessWidget {
   }
 }
 
-// LEFT SIDE
+// ======================= LEFT SIDE (SEARCH & LIST) =======================
 
 class _LeftTransactionList extends StatelessWidget {
   const _LeftTransactionList();
@@ -96,14 +157,62 @@ class _LeftTransactionList extends StatelessWidget {
         const _SearchBar(),
         const Divider(height: 1, thickness: 1, color: kBorderColor),
         Expanded(
-          child: ListView.separated(
-            itemCount: 1,
-            separatorBuilder: (_, __) => const Divider(
-              height: 1,
-              thickness: 1,
-              color: kBorderColor,
-            ),
-            itemBuilder: (context, index) => const _TransactionItem(),
+          child: BlocBuilder<DashboardBloc, DashboardState>(
+            builder: (context, state) {
+              if (state.status == DashboardStatus.loading) {
+                return const Center(
+                  child: CircularProgressIndicator(color: kBrandColor),
+                );
+              }
+
+              // [LOGIKA BARU] Filter Hanya Status 'COMPLETED' di UI Saja
+              final completedTransactions = state.transactionList.where((t) {
+                final status = t['status']?.toString().toUpperCase();
+                // Jika status tidak ada (null), anggap completed agar aman, atau sesuaikan
+                return status == 'COMPLETED';
+              }).toList();
+
+              if (completedTransactions.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.receipt_long, size: 48, color: kTextGrey),
+                      SizedBox(height: 8),
+                      Text(
+                        "No completed transactions found",
+                        style: TextStyle(color: kTextGrey),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                itemCount: completedTransactions
+                    .length, // Gunakan list yang sudah difilter
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, thickness: 1, color: kBorderColor),
+                itemBuilder: (context, index) {
+                  final transaction =
+                      completedTransactions[index]; // Ambil dari list filter
+
+                  final transId =
+                      transaction['receipt_number'] ??
+                      transaction['transaction_number'];
+                  final selectedId =
+                      state.selectedReportTransaction?['receipt_number'] ??
+                      state.selectedReportTransaction?['transaction_number'];
+
+                  final isSelected = transId != null && transId == selectedId;
+
+                  return _TransactionItem(
+                    transaction: transaction,
+                    isSelected: isSelected,
+                  );
+                },
+              );
+            },
           ),
         ),
       ],
@@ -111,8 +220,37 @@ class _LeftTransactionList extends StatelessWidget {
   }
 }
 
-class _SearchBar extends StatelessWidget {
+class _SearchBar extends StatefulWidget {
   const _SearchBar();
+
+  @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  final TextEditingController _searchController = TextEditingController();
+
+  void _performSearch() {
+    final query = _searchController.text;
+    if (query.isNotEmpty) {
+      context.read<DashboardBloc>().add(SearchTransactionRequested(query));
+    } else {
+      context.read<DashboardBloc>().add(FetchCurrentShiftTransactions());
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<DashboardBloc>().add(FetchCurrentShiftTransactions());
+    _searchController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,13 +262,17 @@ class _SearchBar extends StatelessWidget {
             child: SizedBox(
               height: 44,
               child: TextField(
+                controller: _searchController,
+                onSubmitted: (_) => _performSearch(),
                 decoration: InputDecoration(
                   hintText: 'Enter transaction number',
                   hintStyle: const TextStyle(color: kTextGrey, fontSize: 13),
                   filled: true,
                   fillColor: kWhiteColor,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 0,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(color: kBorderColor),
@@ -143,6 +285,21 @@ class _SearchBar extends StatelessWidget {
                     borderRadius: BorderRadius.all(Radius.circular(10)),
                     borderSide: BorderSide(color: kBrandColor, width: 2),
                   ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            size: 18,
+                            color: kTextGrey,
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            context.read<DashboardBloc>().add(
+                              FetchCurrentShiftTransactions(),
+                            );
+                          },
+                        )
+                      : null,
                 ),
               ),
             ),
@@ -150,7 +307,7 @@ class _SearchBar extends StatelessWidget {
           const SizedBox(width: 12),
           SizedBox(
             height: 44,
-            width: 130,
+            width: 100,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: kBrandColor,
@@ -159,7 +316,7 @@ class _SearchBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              onPressed: () {},
+              onPressed: _performSearch,
               child: const Text(
                 'Search',
                 style: TextStyle(fontWeight: FontWeight.w600),
@@ -173,70 +330,121 @@ class _SearchBar extends StatelessWidget {
 }
 
 class _TransactionItem extends StatelessWidget {
-  const _TransactionItem();
+  final Map<String, dynamic> transaction;
+  final bool isSelected;
+
+  const _TransactionItem({
+    super.key,
+    required this.transaction,
+    required this.isSelected,
+  });
+
+  // Helper untuk mencari data tanggal dari berbagai kemungkinan key
+  String _getDate() {
+    final raw =
+        transaction['transaction_time'] ??
+        transaction['created_at'] ??
+        transaction['date'] ??
+        transaction['transaction_date'];
+
+    if (raw == null) return '-';
+
+    try {
+      final DateTime parsed = DateTime.parse(raw.toString());
+      return DateFormat('dd-MM-yyyy HH:mm').format(parsed.toLocal());
+    } catch (e) {
+      return raw.toString();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp. ',
+      decimalDigits: 0,
+    );
+
+    // Prioritaskan receipt_number (sesuai Void Mode)
+    final String transNo =
+        transaction['receipt_number'] ??
+        transaction['transaction_number'] ??
+        '-';
+
+    final String date = _getDate();
+
+    final double total =
+        double.tryParse((transaction['total_amount'] ?? '0').toString()) ?? 0;
+
     return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      color: Colors.transparent,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'TR0511202510001',
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Nomor Transaksi (Atas)
+                Text(
+                  transNo,
+                  style: const TextStyle(
+                    color: kTextDark,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // 2. Baris Bawah: Tanggal [Jarak] Harga (Berdekatan)
+                Row(
+                  // HAPUS MainAxisAlignment.spaceBetween agar rata kiri (berdekatan)
+                  children: [
+                    // Tanggal
+                    Text(
+                      date,
+                      style: const TextStyle(color: kTextGrey, fontSize: 11),
+                    ),
+
+                    const SizedBox(width: 12), // Berikan jarak 12 pixel
+                    // Harga (Di sebelah tanggal)
+                    Text(
+                      formatter.format(total),
+                      style: const TextStyle(color: kTextGrey, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Tombol View Receipt dengan visual feedback
+          SizedBox(
+            height: 32,
+            width: 110,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                backgroundColor: isSelected ? kBrandColor : Colors.transparent,
+                side: BorderSide(color: isSelected ? kBrandColor : kTextGrey),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: EdgeInsets.zero,
+              ),
+              onPressed: () {
+                context.read<DashboardBloc>().add(
+                  SelectReportTransaction(transaction),
+                );
+              },
+              child: Text(
+                'View receipt',
                 style: TextStyle(
-                  color: kTextDark,
+                  color: isSelected ? kWhiteColor : kTextGrey,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                '05-11-2025 09:13:15',
-                style: TextStyle(
-                  color: kTextGrey,
-                  fontSize: 11,
-                ),
-              ),
-              Text(
-                'Rp. 18.000,00',
-                style: TextStyle(
-                  color: kTextDark,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: SizedBox(
-              height: 36,
-              width: 140,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: kBrandColor),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () {},
-                child: const Text(
-                  'View receipt',
-                  style: TextStyle(
-                    color: kBrandColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
                 ),
               ),
             ),
@@ -246,112 +454,449 @@ class _TransactionItem extends StatelessWidget {
     );
   }
 }
+// ======================= RIGHT SIDE (DETAIL & PRINT) =======================
 
-// RIGHT SIDE
-
-class _RightCartDetail extends StatelessWidget {
+class _RightCartDetail extends StatefulWidget {
   const _RightCartDetail();
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          height: 48,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: const Text(
-            'Cart',
-            style: TextStyle(
-              color: kTextDark,
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-            ),
+  State<_RightCartDetail> createState() => _RightCartDetailState();
+}
+
+class _RightCartDetailState extends State<_RightCartDetail> {
+  final PrinterStorageService _printerStorage = PrinterStorageService();
+  bool _isPrinting = false;
+
+  Future<void> _handlePrintReceipt(Map<String, dynamic> transaction) async {
+    setState(() => _isPrinting = true);
+
+    try {
+      final savedPrinters = await _printerStorage.loadPrinters();
+      final selectedId = await _printerStorage.loadSelectedPrinter();
+
+      if (savedPrinters.isEmpty || selectedId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No printer selected. Go to Settings.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final printer = savedPrinters.firstWhere(
+        (p) => p.id == selectedId,
+        orElse: () => savedPrinters.first,
+      );
+      final printerManager = PrinterManager.instance;
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm58, profile);
+
+      PrinterType type = (printer.type == SavedPrinterType.bluetooth)
+          ? PrinterType.bluetooth
+          : PrinterType.usb;
+      dynamic model;
+
+      if (printer.type == SavedPrinterType.bluetooth) {
+        model = BluetoothPrinterInput(
+          name: printer.name,
+          address: printer.bluetoothAddress ?? '',
+        );
+      } else {
+        model = UsbPrinterInput(
+          name: printer.name,
+          vendorId: printer.vendorId?.toString(),
+          productId: printer.productId?.toString(),
+        );
+      }
+
+      await printerManager.connect(type: type, model: model);
+
+      List<int> bytes = [];
+      bytes += generator.text(
+        'HOREKA POS+',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      );
+      bytes += generator.emptyLines(1);
+
+      // [PERBAIKAN] Key untuk header receipt
+      final transNo =
+          transaction['receipt_number'] ??
+          transaction['transaction_number'] ??
+          '-';
+      final rawDate =
+          transaction['transaction_time'] ?? transaction['created_at'];
+      String date = '-';
+      if (rawDate != null) {
+        try {
+          date = DateFormat(
+            'dd-MM-yyyy HH:mm',
+          ).format(DateTime.parse(rawDate.toString()));
+        } catch (_) {
+          date = rawDate.toString();
+        }
+      }
+
+      bytes += generator.text(
+        transNo,
+        styles: const PosStyles(align: PosAlign.center),
+      );
+      bytes += generator.text(
+        date,
+        styles: const PosStyles(align: PosAlign.center),
+      );
+      bytes += generator.emptyLines(1);
+      bytes += generator.hr();
+
+      // [PERBAIKAN] Key untuk items sesuai VoidModePage (items ATAU transaction_details)
+      final List<dynamic> items =
+          transaction['items'] ?? transaction['transaction_details'] ?? [];
+
+      final formatter = NumberFormat.decimalPattern('id');
+
+      for (var item in items) {
+        // [PERBAIKAN] Parsing item sesuai VoidModePage
+        // Nama bisa ada di root atau di dalam object 'product'
+        String name =
+            item['product_name'] ?? item['product']?['product_name'] ?? 'Item';
+
+        int qty = int.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
+
+        // Harga bisa 'price_at_transaction' atau 'unit_price' atau 'price'
+        double price =
+            double.tryParse(
+              (item['price_at_transaction'] ??
+                      item['unit_price'] ??
+                      item['price'] ??
+                      '0')
+                  .toString(),
+            ) ??
+            0;
+
+        double subtotal = price * qty;
+
+        bytes += generator.row([
+          PosColumn(text: name, width: 6),
+          PosColumn(
+            text: 'x$qty',
+            width: 2,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+          PosColumn(
+            text: formatter.format(subtotal),
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]);
+      }
+      bytes += generator.hr();
+
+      // Total calculation
+      // 1. Ambil Total
+      double total =
+          double.tryParse((transaction['total_amount'] ?? '0').toString()) ?? 0;
+
+      // 2. Ambil Tax & Discount Langsung
+      double tax =
+          double.tryParse(
+            (transaction['total_tax'] ?? transaction['tax_amount'] ?? '0')
+                .toString(),
+          ) ??
+          0;
+      double discount =
+          double.tryParse(
+            (transaction['total_discount'] ??
+                    transaction['discount_amount'] ??
+                    '0')
+                .toString(),
+          ) ??
+          0;
+
+      // 3. Hitung Subtotal Mundur
+      double subtotalCalc = total - tax + discount;
+
+      bytes += generator.row([
+        PosColumn(text: 'Subtotal', width: 6),
+        PosColumn(
+          text: formatter.format(subtotalCalc),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]);
+
+      if (discount > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Discount', width: 6),
+          PosColumn(
+            text: '-${formatter.format(discount)}',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]);
+      }
+
+      if (tax > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Tax', width: 6),
+          PosColumn(
+            text: formatter.format(tax),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]);
+      }
+
+      bytes += generator.emptyLines(1);
+      bytes += generator.row([
+        PosColumn(
+          text: 'TOTAL',
+          width: 5,
+          styles: const PosStyles(bold: true, height: PosTextSize.size2),
+        ),
+        PosColumn(
+          text: formatter.format(total),
+          width: 7,
+          styles: const PosStyles(
+            align: PosAlign.right,
+            bold: true,
+            height: PosTextSize.size2,
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: kBorderColor),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+      ]);
+      bytes += generator.emptyLines(1);
+      bytes += generator.row([
+        PosColumn(
+          text: 'TOTAL',
+          width: 5,
+          styles: const PosStyles(bold: true, height: PosTextSize.size2),
+        ),
+        PosColumn(
+          text: formatter.format(total),
+          width: 7,
+          styles: const PosStyles(
+            align: PosAlign.right,
+            bold: true,
+            height: PosTextSize.size2,
+          ),
+        ),
+      ]);
+
+      bytes += generator.emptyLines(2);
+      bytes += generator.text(
+        'Thank you!',
+        styles: const PosStyles(align: PosAlign.center),
+      );
+      bytes += generator.cut();
+
+      await printerManager.send(type: type, bytes: bytes);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Receipt sent'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Print failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isPrinting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final transaction = state.selectedReportTransaction;
+
+        if (transaction == null) {
+          return const Center(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _CartItem(),
-                const Spacer(),
-                const _SummaryPanel(),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kBrandColor,
-                      foregroundColor: kWhiteColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () {
-                      // TODO: print receipt
-                    },
-                    child: const Text(
-                      'Print Receipt',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                Icon(Icons.receipt, size: 64, color: kBorderColor),
+                SizedBox(height: 16),
+                Text(
+                  'Select a transaction to view receipt',
+                  style: TextStyle(color: kTextGrey),
                 ),
               ],
             ),
-          ),
-        ),
-      ],
+          );
+        }
+
+        // [PERBAIKAN] Menggunakan key items yang sama dengan VoidModePage
+        final List<dynamic> items =
+            transaction['items'] ?? transaction['transaction_details'] ?? [];
+
+        return Column(
+          children: [
+            Container(
+              height: 48,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: const Text(
+                'Cart',
+                style: TextStyle(
+                  color: kTextDark,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+             const SizedBox(height: 20),
+            const Divider(height: 1, thickness: 1, color: kBorderColor),
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: items.isEmpty
+                        ? const Center(child: Text("No item details found"))
+                        : ListView.builder(
+                            padding: EdgeInsets.zero,
+                            itemCount: items.length,
+                            itemBuilder: (context, index) {
+                              return _CartItem(item: items[index]);
+                            },
+                          ),
+                  ),
+                  _SummaryPanel(transaction: transaction),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kBrandColor,
+                          foregroundColor: kWhiteColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _isPrinting
+                            ? null
+                            : () => _handlePrintReceipt(transaction),
+                        child: _isPrinting
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: kWhiteColor,
+                                ),
+                              )
+                            : const Text(
+                                'Print Receipt',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _CartItem extends StatelessWidget {
+  final Map<String, dynamic> item;
+
+  const _CartItem({required this.item});
+
   @override
   Widget build(BuildContext context) {
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp. ',
+      decimalDigits: 0,
+    );
+
+    // [PERBAIKAN] Parsing sesuai VoidModePage
+    // 1. Nama Product (bisa nested di object product)
+    final name =
+        item['product_name'] ?? item['product']?['product_name'] ?? 'Unknown';
+
+    // 2. Quantity
+    final qty = item['quantity']?.toString() ?? '1';
+
+    // 3. Harga (bisa price_at_transaction, unit_price, atau price)
+    final priceRaw =
+        item['price_at_transaction'] ??
+        item['unit_price'] ??
+        item['price'] ??
+        0;
+    final price = double.tryParse(priceRaw.toString()) ?? 0;
+
+    final subtotal = price * int.parse(qty);
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: kBorderColor, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: kBorderColor, width: 1)),
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             flex: 5,
             child: Text(
-              'Mie',
-              style: TextStyle(
-                color: kTextDark,
-                fontSize: 13,
-              ),
+              name,
+              style: const TextStyle(color: kTextDark, fontSize: 13),
             ),
           ),
-          const Expanded(
+          // 2. Quantity dengan Label "Qty" di atasnya
+          Expanded(
             flex: 2,
-            child: Text(
-              'Qty',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: kTextGrey,
-                fontSize: 12,
-              ),
+            child: Column(
+              children: [
+                const Text(
+                  "Qty", 
+                  style: TextStyle(
+                    color: kTextGrey, 
+                    fontSize: 11, // Ukuran font label kecil
+                    fontWeight: FontWeight.w500
+                  )
+                ),
+                const SizedBox(height: 2), // Jarak kecil
+                Text(
+                  qty, 
+                  textAlign: TextAlign.center, 
+                  style: const TextStyle(
+                    color: kTextDark, 
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600
+                  )
+                ),
+              ],
             ),
           ),
           Expanded(
             flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
+              children: [
                 Text(
-                  'Rp. 18.000,00',
-                  style: TextStyle(
+                  formatter.format(subtotal),
+                  style: const TextStyle(
                     color: kTextDark,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -367,40 +912,131 @@ class _CartItem extends StatelessWidget {
 }
 
 class _SummaryPanel extends StatelessWidget {
-  const _SummaryPanel();
+  final Map<String, dynamic> transaction;
+
+  const _SummaryPanel({required this.transaction});
 
   @override
   Widget build(BuildContext context) {
-    const label = TextStyle(color: kTextGrey, fontSize: 12);
-    const value = TextStyle(color: kTextGrey, fontSize: 12);
+    // 1. Ambil Total
+    final double total =
+        double.tryParse((transaction['total_amount'] ?? '0').toString()) ?? 0;
+
+    // 2. Ambil Tax & Discount Langsung dari Backend (Key: total_tax, total_discount)
+    // Kita tetap pasang fallback key lain untuk keamanan
+    final double tax =
+        double.tryParse(
+          (transaction['total_tax'] ?? transaction['tax_amount'] ?? '0')
+              .toString(),
+        ) ??
+        0;
+    final double discount =
+        double.tryParse(
+          (transaction['total_discount'] ??
+                  transaction['discount_amount'] ??
+                  '0')
+              .toString(),
+        ) ??
+        0;
+
+    // 3. Hitung Subtotal Mundur (Total - Pajak + Diskon)
+    // Ini lebih aman daripada menjumlahkan item satu per satu
+    final double subtotal = total - tax + discount;
+
+    // Label Promo
+    final String? promoCode = transaction['promo_code'];
+    final String discountLabel = (promoCode != null && promoCode.isNotEmpty)
+        ? 'Promo ($promoCode)'
+        : 'Discount';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _row('Discount', '-Rp.0,00', label, value),
-        _row('Subtotal', 'Rp.18.000,00', label, value),
-        _row('Tax', '+Rp.0,00', label, value),
-        const SizedBox(height: 4),
-        _row(
-          'Total',
-          'Rp.18.000,00',
-          label.copyWith(fontWeight: FontWeight.w700),
-          value.copyWith(fontWeight: FontWeight.w700),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+
+              // 1. Subtotal
+              _buildSummaryRow('Subtotal', subtotal),
+
+              // 2. Discount (Hijau, Minus) - Muncul jika ada nilai
+              if (discount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _buildSummaryRow(
+                    discountLabel,
+                    discount,
+                    isNegative: true,
+                    color: Colors.green,
+                  ),
+                ),
+
+              // 3. Tax (Merah, Plus) - Muncul jika ada nilai
+              if (tax > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _buildSummaryRow(
+                    'Tax',
+                    tax,
+                    isPositive: true,
+                    color: Colors.red,
+                  ),
+                ),
+            ],
+          ),
         ),
+
+       
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: _buildSummaryRow('Total', total, isBold: true),
+        ),
+
+        const Divider(height: 1, thickness: 1, color: kBorderColor),
       ],
     );
   }
 
-  Widget _row(String l, String v, TextStyle ls, TextStyle vs) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(l, style: ls),
-          Text(v, style: vs),
-        ],
-      ),
+  Widget _buildSummaryRow(
+    String label,
+    double amount, {
+    bool isNegative = false,
+    bool isPositive = false,
+    bool isBold = false,
+    Color? color,
+  }) {
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp. ',
+      decimalDigits: 0,
+    );
+    String prefix = '';
+    if (isNegative && amount > 0) prefix = '-';
+    if (isPositive && amount > 0) prefix = '+';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isBold ? 16 : 12,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+            color: color ?? (isBold ? kTextDark : kTextGrey),
+          ),
+        ),
+        Text(
+          '$prefix${formatter.format(amount)}',
+          style: TextStyle(
+            fontSize: isBold ? 16 : 12,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+            color: color ?? (isBold ? kTextDark : kTextGrey),
+          ),
+        ),
+      ],
     );
   }
 }

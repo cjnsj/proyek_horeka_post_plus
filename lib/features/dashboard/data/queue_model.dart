@@ -7,6 +7,10 @@ class QueueModel {
   final String note;
   final String createdAt;
   final List<CartItem> items;
+  
+  // Field Baru
+  final String shiftName;
+  final String cashierName;
 
   QueueModel({
     required this.id,
@@ -14,60 +18,64 @@ class QueueModel {
     required this.note,
     required this.createdAt,
     required this.items,
+    this.shiftName = '',
+    this.cashierName = '',
   });
 
   factory QueueModel.fromJson(Map<String, dynamic> json) {
-    // Ambil list item dari 'details' (sesuai JSON Anda) atau fallback ke 'saved_order_items'
+    // 1. Parsing Items (Aman dari null)
     var list = json['details'] ?? json['saved_order_items'] ?? [];
-    
     List<CartItem> cartItemsList = [];
 
     if (list is List) {
       cartItemsList = list.map((i) {
-        // Ambil objek product
         var p = i['product'] ?? {};
-
-        // --- DEBUGGING HARGA ---
-        // print("DEBUG PRODUCT: ${p['product_name']} | RAW PRICE: ${p['base_price']} | TYPE: ${p['base_price'].runtimeType}");
-
-        // Parsing Harga Lebih Kuat (Handle String "3000", Int 3000, Double 3000.0)
+        
+        // Parse Harga dengan aman (Handle String/Int/Double/Null)
         int parsedPrice = 0;
-        var rawPrice = p['base_price'] ?? p['price']; // Cek kedua key
-
+        var rawPrice = p['base_price'] ?? p['price'];
         if (rawPrice != null) {
-           // Konversi ke String dulu -> Parse Double -> Ambil Int
-           // Cara ini paling aman untuk menangani "3000", "3000.00", atau 3000
            parsedPrice = double.tryParse(rawPrice.toString())?.toInt() ?? 0;
         }
 
-        // Parsing Quantity
+        // Parse Qty dengan aman
         int parsedQty = int.tryParse(i['quantity']?.toString() ?? '1') ?? 1;
 
-        // Mapping ke ProductModel
         ProductModel product = ProductModel(
           productId: i['product_id']?.toString() ?? '',
-          name: p['product_name'] ?? 'Unknown Product',
+          name: p['product_name']?.toString() ?? 'Unknown Product', // Tambah toString()
           description: '', 
           imageUrl: '', 
           category: '', 
-          price: parsedPrice, // Gunakan harga yang sudah diparsing
+          price: parsedPrice, 
           isAvailable: true,
         );
 
         return CartItem(
           product: product,
           quantity: parsedQty,
-          note: i['item_note'] ?? '',
+          note: i['item_note']?.toString() ?? '', // Tambah toString()
         );
       }).toList();
     }
 
     return QueueModel(
       id: json['saved_order_id']?.toString() ?? '',
-      customerName: json['queue_name'] ?? json['customer_name'] ?? 'Tanpa Nama',
-      note: json['order_notes'] ?? json['note'] ?? '',
-      createdAt: json['created_at'] ?? '',
+      
+      // [PERBAIKAN] Gunakan toString() untuk jaga-jaga jika backend kirim Angka (Int)
+      customerName: json['queue_name']?.toString() ?? json['customer_name']?.toString() ?? 'Tanpa Nama',
+      
+      note: json['order_notes']?.toString() ?? json['note']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
       items: cartItemsList,
+      
+      // [PERBAIKAN] Ambil data Shift & Kasir dengan null check berlapis
+      shiftName: json['shift_name']?.toString() ?? json['shift']?['name']?.toString() ?? '',
+      
+      cashierName: json['cashier']?['full_name']?.toString() ?? 
+                   json['waiter_name']?.toString() ?? 
+                   json['user']?['name']?.toString() ?? 
+                   'Kasir',
     );
   }
 }

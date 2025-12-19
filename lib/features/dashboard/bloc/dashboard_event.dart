@@ -167,3 +167,20 @@ class SearchMenuChanged extends DashboardEvent {
   @override
   List<Object?> get props => [query];
 }
+
+// --- Printer Events ---
+
+class PrintReceiptRequested extends DashboardEvent {
+  // Opsional: kirim data transaksi spesifik jika mencetak ulang riwayat
+  // Jika kosong, gunakan data cart saat ini
+  const PrintReceiptRequested(); 
+}
+
+// [TAMBAHAN BARU] Event untuk update status koneksi printer (Hijau/Merah)
+class PrinterConnectionUpdated extends DashboardEvent {
+  final bool isConnected;
+  const PrinterConnectionUpdated(this.isConnected);
+
+  @override
+  List<Object?> get props => [isConnected];
+}

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // Import Image Picker
+import 'package:flutter/services.dart'; // [TAMBAHAN] Untuk TextInputFormatter
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart'; // [TAMBAHAN] Untuk NumberFormat
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 
 class ExpenseDialog extends StatefulWidget {
@@ -21,46 +23,86 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
 
-  // [UPDATE] Fungsi Pilih Gambar dengan Validasi Ukuran 1 MB
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 50, // Kompresi kualitas (opsional)
-    );
+  // [UPDATE] Fungsi Pilih Gambar dengan Validasi Ukuran 1 MB & Sumber Dinamis
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source, // Gunakan source yang dipilih (Kamera/Galeri)
+        imageQuality: 50, // Kompresi kualitas (opsional)
+      );
 
-    if (pickedFile != null) {
-      File imageFile = File(pickedFile.path);
+      if (pickedFile != null) {
+        File imageFile = File(pickedFile.path);
 
-      // Hitung ukuran file dalam Bytes
-      int sizeInBytes = await imageFile.length();
-      double sizeInMb = sizeInBytes / (1024 * 1024); // Konversi ke MB
+        // Hitung ukuran file dalam Bytes
+        int sizeInBytes = await imageFile.length();
+        double sizeInMb = sizeInBytes / (1024 * 1024); // Konversi ke MB
 
-      // [VALIDASI] Jika lebih dari 1 MB, tolak!
-      if (sizeInMb > 1) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Ukuran gambar terlalu besar! Maksimal 1 MB.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
-            ),
-          );
+        // [VALIDASI] Jika lebih dari 1 MB, tolak!
+        if (sizeInMb > 1) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Ukuran gambar terlalu besar! Maksimal 1 MB.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          // Jangan simpan file ke state, langsung keluar
+          return;
         }
-        // Jangan simpan file ke state, langsung keluar
-        return;
-      }
-      print(
-        "📸 [DEBUG UI] Gambar dipilih: ${pickedFile.path}",
-      ); 
-      print(
-        "📸 [DEBUG UI] Ukuran: ${sizeInMb.toStringAsFixed(2)} MB",
-      ); 
+        print(
+          "📸 [DEBUG UI] Gambar dipilih: ${pickedFile.path}",
+        );
+        print(
+          "📸 [DEBUG UI] Ukuran: ${sizeInMb.toStringAsFixed(2)} MB",
+        );
 
-      // Jika lolos validasi (<= 1 MB), simpan ke state
-      setState(() {
-        _selectedImage = imageFile;
-      });
+        // Jika lolos validasi (<= 1 MB), simpan ke state
+        setState(() {
+          _selectedImage = imageFile;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error picking image: $e");
     }
+  }
+
+  // [BARU] Fungsi Menampilkan Pilihan (Kamera / Galeri)
+  void _showImageSourcePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading:
+                    const Icon(Icons.photo_library, color: Color(0xFF4A3AA0)),
+                title: const Text('Ambil dari Galeri'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.camera_alt, color: Color(0xFF4A3AA0)),
+                title: const Text('Buka Kamera'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -95,7 +137,8 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
               ),
               const SizedBox(height: 12),
               InkWell(
-                onTap: _pickImage,
+                onTap: () => _showImageSourcePicker(
+                    context), // [UPDATE] Panggil picker dialog
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   height: 120, // Tinggi area upload
@@ -154,9 +197,11 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _descController,
+                // [TAMBAHAN] Agar input mulai dari kanan
+                textAlign: TextAlign.center,
                 // [PERBAIKAN] Warna teks input hitam
                 style: const TextStyle(
-                  color: Colors.black, 
+                  color: Colors.black,
                   fontSize: 14,
                 ),
                 decoration: InputDecoration(
@@ -196,6 +241,13 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
               TextField(
                 controller: _amountController,
                 keyboardType: TextInputType.number,
+                // [TAMBAHAN] Agar input mulai dari kanan
+                textAlign: TextAlign.center,
+                // [TAMBAHAN] Formatter Rupiah
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  CurrencyInputFormatter(),
+                ],
                 // [PERBAIKAN] Warna teks input hitam
                 style: const TextStyle(
                   color: Colors.black,
@@ -233,7 +285,7 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
                       height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey.shade600,
+                          backgroundColor: Colors.red,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -259,7 +311,8 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
                       height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4A3AA0), // Warna Ungu
+                          backgroundColor:
+                              kBrandColor, // Warna Ungu
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -269,7 +322,7 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
                         onPressed: () {
                           print(
                             "🖱️ [DEBUG UI] Tombol Save Ditekan",
-                          ); 
+                          );
                           print(
                             "📝 [DEBUG UI] Desc: ${_descController.text}, Amount: ${_amountController.text}, Path: ${_selectedImage?.path}",
                           );
@@ -277,7 +330,8 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
                           widget.onSave(
                             _descController.text,
                             _amountController.text,
-                            _selectedImage?.path, // Kirim path gambar (bisa null)
+                            _selectedImage
+                                ?.path, // Kirim path gambar (bisa null)
                           );
                           Navigator.of(context).pop();
                         },
@@ -297,6 +351,41 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ================= [TAMBAHAN CLASS FORMATTER] =================
+
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    if (newValue.selection.baseOffset == 0) {
+      return newValue;
+    }
+
+    double value = double.parse(
+      newValue.text.replaceAll(RegExp(r'[^0-9]'), ''),
+    );
+
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp. ', // Symbol Rupiah
+      decimalDigits: 0,
+    );
+
+    String newText = formatter.format(value);
+
+    return newValue.copyWith(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
     );
   }
 }

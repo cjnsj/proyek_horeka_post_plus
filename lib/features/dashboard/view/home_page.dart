@@ -1262,16 +1262,10 @@ class _SummaryColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
-        // Ambil data langsung dari hasil hitungan server di State
         final subtotal = state.subtotal;
         final tax = state.taxValue;
         final total = state.finalTotalAmount;
-
-        // [LOGIC BARU] Hitung harga asli sebelum diskon (Subtotal + Pajak)
-        // Ini yang akan ditampilkan sebagai harga coret
         final originalTotal = subtotal + tax;
-
-        // List promo yang didapat dari server (Gabungan Auto & Manual)
         final promos = state.appliedPromos;
 
         final formatter = NumberFormat.currency(
@@ -1283,44 +1277,95 @@ class _SummaryColumn extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Subtotal (Harga Barang)
-            _SummaryRow(label: 'Subtotal', value: formatter.format(subtotal)),
+            // 1. Subtotal
+            _SummaryRow(
+              label: 'Subtotal', 
+              value: formatter.format(subtotal)
+            ),
 
             // 2. LOOPING DISKON DARI SERVER
             if (promos.isNotEmpty) ...[
               const SizedBox(height: 4),
               ...promos.map(
                 (promo) => _SummaryRow(
-                  label: 'Discount (${promo.name})',
+                  label: '', // Kosongkan karena kita pakai customLabel
+                  // [LOGIC WARNA-WARNI DISINI]
+                  customLabel: Text.rich(
+                    TextSpan(
+                      style: const TextStyle(fontSize: 13), // Ukuran font dasar
+                      children: [
+                        const TextSpan(
+                          text: 'Discount ',
+                          style: TextStyle(
+                            color: kTextDark, // "Discount" warna Hitam
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '(${promo.name})',
+                          style: const TextStyle(
+                            color: Colors.green, // "(Nama Promo)" warna Hijau
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   value: '- ${formatter.format(promo.amount)}',
-                  textColor: Colors.green,
+                  valueColor: Colors.black, // Nilai Rp warna Hijau
                 ),
               ),
             ] else if (state.discountAmount > 0) ...[
+              // Diskon manual (tanpa nama spesifik)
               _SummaryRow(
                 label: 'Discount',
                 value: '- ${formatter.format(state.discountAmount)}',
-                textColor: Colors.green,
+                valueColor: Colors.red, // Nilai Rp warna Hijau
               ),
             ],
 
             // 3. Tax (Pajak)
             const SizedBox(height: 4),
-            _SummaryRow(
-              label: state.taxPercentage > 0
-                  ? 'Tax (${state.taxPercentage.toStringAsFixed(0)}%)'
-                  : 'Tax',
-              value: '+ ${formatter.format(tax)}',
-              textColor: Colors.black,
-            ),
+            if (state.taxPercentage > 0) 
+              _SummaryRow(
+                label: '', // Kosongkan label biasa
+                customLabel: Text.rich(
+                  TextSpan(
+                    style: const TextStyle(fontSize: 13),
+                    children: [
+                      const TextSpan(
+                        text: 'Tax ',
+                        style: TextStyle(
+                          color: kTextDark, // "Tax" warna Hitam
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '(${state.taxPercentage.toStringAsFixed(0)}%)',
+                        style: const TextStyle(
+                          color: Colors.black, // "(11%)" warna Hijau
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                value: '+ ${formatter.format(tax)}',
+                valueColor: Colors.black, // Nilai Rp warna Hijau
+              )
+            else 
+              // Jika tidak ada persentase (Flat tax atau 0), tampilkan biasa
+              _SummaryRow(
+                label: 'Tax',
+                value: '+ ${formatter.format(tax)}',
+                valueColor: Colors.black, // Nilai Rp warna Hijau
+              ),
 
-            // 4. Total Akhir (DENGAN HARGA CORET)
+            // 4. Total Akhir
             _SummaryRow(
               label: 'Total',
               value: formatter.format(total),
               isBold: true,
-              // [LOGIC BARU] Tampilkan harga coret HANYA JIKA ada diskon (Total != Original)
-              // Jika ingin selalu muncul meski tidak ada diskon, hapus kondisi 'originalTotal != total'
               strikeThroughValue: originalTotal != total
                   ? formatter.format(originalTotal)
                   : null,
@@ -1331,28 +1376,36 @@ class _SummaryColumn extends StatelessWidget {
     );
   }
 }
-
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isBold;
-  final Color? textColor;
-  final String? strikeThroughValue; // [BARU] Parameter untuk teks coret
+  final Widget? customLabel; // [BARU] Untuk teks kombinasi warna
+  final Color? valueColor;   // [BARU] Khusus untuk warna harga
+  final String? strikeThroughValue;
 
   const _SummaryRow({
+    super.key, // Tambahkan key
     required this.label,
     required this.value,
     this.isBold = false,
-    this.textColor,
-    this.strikeThroughValue, // [BARU] Tambahkan di constructor
+    this.customLabel, // [BARU]
+    this.valueColor,  // [BARU]
+    this.strikeThroughValue,
   });
 
   @override
   Widget build(BuildContext context) {
-    final style = TextStyle(
-      color:
-          textColor ??
-          kTextDark, // Menggunakan kTextDark (sesuaikan dgn konstanta Anda) atau Colors.black
+    // Style dasar untuk Value (Harga)
+    final valueStyle = TextStyle(
+      color: valueColor ?? kTextDark, // Gunakan valueColor jika ada
+      fontSize: 13,
+      fontWeight: isBold ? FontWeight.w700 : FontWeight.w500, // Value biasanya lebih tebal dikit
+    );
+
+    // Style dasar untuk Label biasa
+    final labelStyle = TextStyle(
+      color: kTextDark,
       fontSize: 13,
       fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
     );
@@ -1362,30 +1415,25 @@ class _SummaryRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Label Kiri (Total, Tax, dll)
-          Text(label, style: style),
+          // KIRI: Jika ada customLabel (RichText), pakai itu. Jika tidak, pakai Text biasa.
+          customLabel ?? Text(label, style: labelStyle),
 
-          // Bagian Kanan (Harga Coret + Harga Akhir)
+          // KANAN: Harga Coret + Harga Akhir
           Row(
             children: [
-              // [LOGIC BARU] Jika ada nilai strikeThroughValue, tampilkan
               if (strikeThroughValue != null) ...[
                 Text(
                   strikeThroughValue!,
                   style: const TextStyle(
-                    color: Colors.grey, // Warna abu-abu
-                    fontSize: 12, // Sedikit lebih kecil
-                    decoration: TextDecoration.lineThrough, // Efek Coret
+                    color: Colors.grey,
+                    fontSize: 12,
+                    decoration: TextDecoration.lineThrough,
                     decorationColor: Colors.grey,
                   ),
                 ),
-                const SizedBox(
-                  width: 8,
-                ), // Jarak antara harga coret dan harga asli
+                const SizedBox(width: 8),
               ],
-
-              // Harga Akhir
-              Text(value, style: style),
+              Text(value, style: valueStyle),
             ],
           ),
         ],
@@ -1393,7 +1441,6 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
-
 class _PromoCodeButton extends StatelessWidget {
   const _PromoCodeButton();
 
