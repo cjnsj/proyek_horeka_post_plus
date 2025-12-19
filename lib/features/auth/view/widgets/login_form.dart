@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_bloc.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_state.dart';
@@ -44,12 +45,12 @@ class _LoginFormState extends State<LoginForm> {
     final password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      _showError(context, "Username and Password must be filled.");
+      ToastUtils.showWarningToast("Username and Password must be filled.");
       return;
     }
 
     if (schedules.isNotEmpty && _selectedShiftId == null) {
-      _showError(context, "Please select a shift.");
+      ToastUtils.showWarningToast("Please select a shift.");
       return;
     }
 
@@ -62,14 +63,6 @@ class _LoginFormState extends State<LoginForm> {
             shiftId: shiftIdToSubmit,
           ),
         );
-  }
-  void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
   }
 
   String _formatShiftName(String apiName) {
@@ -95,7 +88,7 @@ class _LoginFormState extends State<LoginForm> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.status == AuthStatus.error) {
-          _showError(context, state.errorMessage ?? "Unknown error");
+          ToastUtils.showErrorToast(state.errorMessage ?? "Unknown error");
         }
 
         if (state.status == AuthStatus.authenticated) {
