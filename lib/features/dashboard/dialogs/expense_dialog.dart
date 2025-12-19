@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // [TAMBAHAN] Untuk TextInputFormatter
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart'; // [TAMBAHAN] Untuk NumberFormat
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/view/dashboard_constants.dart';
 
 class ExpenseDialog extends StatefulWidget {
@@ -40,15 +41,9 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
 
         // [VALIDASI] Jika lebih dari 1 MB, tolak!
         if (sizeInMb > 1) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Ukuran gambar terlalu besar! Maksimal 1 MB.'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
+          ToastUtils.showErrorToast(
+            'Ukuran gambar terlalu besar! Maksimal 1 MB.',
+          );
           // Jangan simpan file ke state, langsung keluar
           return;
         }
