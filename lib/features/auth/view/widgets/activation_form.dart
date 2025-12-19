@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_bloc.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_state.dart';
@@ -24,12 +25,7 @@ class _ActivationFormState extends State<ActivationForm> {
     final code = _codeController.text.trim();
 
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Activation Code is required."),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ToastUtils.showWarningToast("Activation Code is required.");
       return;
     }
 
@@ -41,11 +37,8 @@ class _ActivationFormState extends State<ActivationForm> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.status == AuthStatus.error) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.errorMessage ?? "Unknown error"),
-              backgroundColor: Colors.red,
-            ),
+          ToastUtils.showErrorToast(
+            state.errorMessage ?? "Unknown error",
           );
         }
       },
