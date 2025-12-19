@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:horeka_post_plus/core/utils/toast_utils.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_state.dart';
@@ -746,12 +747,7 @@ class _VoidRequestDialogState extends State<_VoidRequestDialog> {
                         final notes = _notesController.text.trim();
 
                         if (notes.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please enter cancellation notes!'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
+                          ToastUtils.showErrorToast('Please enter cancellation notes!');
                           return;
                         }
 
@@ -766,13 +762,8 @@ class _VoidRequestDialogState extends State<_VoidRequestDialog> {
                         Navigator.of(context).pop();
 
                         // Tampilkan feedback
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Void request sent for ${widget.receiptNumber}',
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
+                        ToastUtils.showSuccessToast(
+                          'Void request sent for ${widget.receiptNumber}',
                         );
                       },
                       style: ElevatedButton.styleFrom(
