@@ -94,25 +94,49 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
   // ================= PRINTER LISTENER & METHODS =================
 
-  void _initPrinterListener() {
-    // [BARU] Auto-connect saat app dibuka
-    printerService.autoConnectSavedPrinter().then((success) {
-      if (success) {
-        print("✅ Printer auto-connected!");
-        add(PrinterConnectionUpdated(true));
-      } else {
-        print("⚠️ Tidak ada printer tersimpan atau gagal connect");
-      }
-    });
-
-    // Listen status bluetooth
-    _printerSubscription = printerService.bluetoothStatusStream.listen((
-      status,
-    ) {
-      final isConnected = (status == BTStatus.connected);
-      add(PrinterConnectionUpdated(isConnected));
-    });
+  void _initPrinterListener() async {
+  print("🔧 [BLOC] Initializing Printer Listener...");
+  
+  // [FIX 1] Delay + Multiple Retry Auto-Connect
+  for (int attempt = 1; attempt <= 3; attempt++) {
+    print("🔄 [BLOC] Auto-connect attempt $attempt/3...");
+    
+    final success = await printerService.autoConnectSavedPrinter();
+    
+    if (success) {
+      print("✅ [BLOC] Printer auto-connected on attempt $attempt!");
+      add(PrinterConnectionUpdated(true));
+      break; // Keluar dari loop jika berhasil
+    } else {
+      print("⚠️ [BLOC] Attempt $attempt failed, retrying in 2s...");
+      await Future.delayed(const Duration(seconds: 2));
+    }
   }
+
+  // [FIX 2] Force Update Status dari Stream (real-time)
+  _printerSubscription = printerService.bluetoothStatusStream.listen(
+    (status) {
+      final isConnected = (status == BTStatus.connected);
+      print("📡 [BLOC] Bluetooth Status: $status → isConnected: $isConnected");
+      
+      // Selalu update state, bahkan jika sudah connected
+      add(PrinterConnectionUpdated(isConnected));
+    },
+    onError: (error) {
+      print("❌ [BLOC] Bluetooth Stream Error: $error");
+      add(PrinterConnectionUpdated(false));
+    },
+  );
+
+  // [FIX 3] Periodic Check setiap 5 detik (safety net)
+  Timer.periodic(const Duration(seconds: 5), (timer) {
+    if (!state.isPrinterConnected) {
+      print("🔍 [BLOC] Periodic check: printer disconnected, retrying...");
+      printerService.autoConnectSavedPrinter();
+    }
+  });
+}
+
 
   @override
   Future<void> close() {
@@ -993,6 +1017,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     try {
       final tx = event.transaction;
 
+      // Fetch Profil Terbaru
       Map<String, dynamic> freshProfile = {};
       try {
         freshProfile = await repository.fetchStoreProfile();
@@ -1006,6 +1031,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final rFoot = freshProfile['receipt_footer'] ?? state.receiptFooter;
       final tName = freshProfile['tax_name'] ?? state.taxName;
 
+      // [FIX 1] Parse Item dengan benar
       final List<dynamic> rawItems =
           (tx['items'] ?? tx['transaction_details'] ?? []) as List<dynamic>;
       List<CartItem> cartItems = [];
@@ -1039,8 +1065,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         cartItems.add(CartItem(product: product, quantity: qty));
       }
 
+      // [FIX 2] Ambil DATA REAL dari Transaction History
       double safeParse(dynamic value) =>
           value == null ? 0.0 : double.tryParse(value.toString()) ?? 0.0;
+
       final double total = safeParse(tx['total_amount']);
       final double tax = safeParse(tx['total_tax'] ?? tx['tax_amount']);
       final double discount = safeParse(
@@ -1048,11 +1076,18 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       );
       final double subtotal = total - tax + discount;
 
+      // [FIX 3] AMBIL amountPaid & change DARI DATABASE
+      final double amountPaidReal = safeParse(
+        tx['amount_paid'] ?? tx['payment_amount'],
+      );
+      final double changeReal = safeParse(tx['change_amount'] ?? tx['change']);
+
       final String receiptNo =
           (tx['receipt_number'] ?? tx['transaction_number'] ?? '-').toString();
       final String paymentMethod = (tx['payment_method'] ?? 'CASH').toString();
       final String promoCode = (tx['promo_code'] ?? '').toString();
 
+      // Cashier & Shift dari transaction
       String cashierName = state.currentOperatorName;
       if (tx['shift'] != null &&
           tx['shift'] is Map &&
@@ -1061,10 +1096,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         cashierName = tx['shift']['cashier']['full_name'].toString();
       } else if (tx['cashier_name'] != null) {
         cashierName = tx['cashier_name'].toString();
-      } else if (tx['user'] != null &&
-          tx['user'] is Map &&
-          tx['user']['full_name'] != null) {
-        cashierName = tx['user']['full_name'].toString();
       }
 
       String shiftNameReprint =
@@ -1088,12 +1119,15 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         shiftName: shiftNameReprint,
         cashierName: cashierName,
         transactionId: receiptNo,
-        paymentMethod: "$paymentMethod (Reprint)",
-        amountPaid: total.toInt(),
-        change: 0,
+        paymentMethod: "$paymentMethod (Reprint)", // Tetap tampil "(Reprint)"
+        amountPaid: amountPaidReal.toInt(), // ✅ Dari DB
+        change: changeReal.toInt(), // ✅ Dari DB
       );
 
       await printerService.printReceipt(bytes);
+      print(
+        "✅ [BLOC] Reprint berhasil - Paid: Rp${amountPaidReal.toInt()}, Change: Rp${changeReal.toInt()}",
+      );
     } catch (e, stackTrace) {
       print("❌ Gagal Reprint: $e");
       print(stackTrace);

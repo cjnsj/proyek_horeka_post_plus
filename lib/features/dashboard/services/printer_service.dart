@@ -4,10 +4,11 @@ import 'package:horeka_post_plus/features/dashboard/data/model/shift_receipt_mod
 import 'package:intl/intl.dart';
 import 'package:horeka_post_plus/features/dashboard/data/model/cart_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 class PrinterService {
   final PrinterManager _printerManager = PrinterManager.instance;
-  
+
   // Key untuk SharedPreferences
   static const String _keyPrinterName = 'saved_printer_name';
   static const String _keyPrinterAddress = 'saved_printer_address';
@@ -20,6 +21,81 @@ class PrinterService {
   // Stream Status
   Stream<BTStatus> get bluetoothStatusStream {
     return _printerManager.stateBluetooth;
+  }
+
+  // [BARU] Scan dengan timeout
+  Future<List<PrinterDevice>> scanPrintersWithTimeout(int timeoutMs) async {
+    print("🔍 [SERVICE] Scanning printers for ${timeoutMs}ms...");
+    final completer = Completer<List<PrinterDevice>>();
+    final devices = <PrinterDevice>[];
+    
+    final subscription = scanPrinters().listen(
+      (device) {
+        if (!devices.any((d) => d.address == device.address)) {
+          devices.add(device);
+          print("📱 [SERVICE] Found: ${device.name}");
+        }
+      },
+      onDone: () => completer.complete(devices),
+      onError: (e) => completer.completeError(e),
+    );
+    
+    // Timeout
+    Timer(Duration(milliseconds: timeoutMs), () {
+      subscription.cancel();
+      completer.complete(devices);
+    });
+    
+    return completer.future;
+  }
+
+  // [BARU] Test print otomatis
+  Future<void> printReceiptTest() async {
+    print("🖨️ [SERVICE] Printing test receipt...");
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(PaperSize.mm58, profile);
+    List<int> bytes = [];
+    
+    bytes += generator.reset();
+    bytes += generator.text('HOREKA POS+ AUTO-SETUP', 
+      styles: const PosStyles(align: PosAlign.center, bold: true));
+    bytes += generator.text('Printer terhubung otomatis!');
+    bytes += generator.text('${DateTime.now().toString().substring(0, 19)}');
+    bytes += generator.cut();
+    
+    await printReceipt(bytes);
+  }
+
+  // [FIX] Auto-setup printer (scan + connect + save + test)
+  Future<bool> autoSetupPrinter() async {
+    print("🔍 [SERVICE] Starting auto-setup...");
+    
+    try {
+      // Scan 8 detik
+      final devices = await scanPrintersWithTimeout(8000);
+      
+      if (devices.isEmpty) {
+        print("❌ [SERVICE] No devices found");
+        return false;
+      }
+      
+      print("📱 [SERVICE] Found ${devices.length} devices");
+      
+      // Connect ke printer pertama
+      final success = await connectPrinter(devices.first);
+      
+      if (success) {
+        // Test print
+        await printReceiptTest();
+        print("✅ [SERVICE] Auto-setup COMPLETE!");
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print("❌ [SERVICE] Auto-setup failed: $e");
+      return false;
+    }
   }
 
   // [BARU] Save Printer ke Storage
@@ -37,8 +113,10 @@ class PrinterService {
     final address = prefs.getString(_keyPrinterAddress);
 
     if (name != null && address != null && address.isNotEmpty) {
+      print("💾 [SERVICE] Loaded saved printer: $name");
       return {'name': name, 'address': address};
     }
+    print("⚠️ [SERVICE] No saved printer found");
     return null;
   }
 
@@ -60,7 +138,7 @@ class PrinterService {
       }
 
       print("🔄 Mencoba auto-connect ke: ${savedPrinter['name']}...");
-      
+
       await _printerManager.connect(
         type: PrinterType.bluetooth,
         model: BluetoothPrinterInput(
@@ -94,7 +172,7 @@ class PrinterService {
 
       // [BARU] Simpan printer setelah connect berhasil
       await savePrinterDevice(device);
-      
+
       return true;
     } catch (e) {
       print("❌ Gagal konek printer: $e");
@@ -135,7 +213,7 @@ class PrinterService {
     required int amountPaid,
     required int change,
     String partnerName = '',
-    String storeName = '', 
+    String storeName = '',
     String? storeAddress,
     String? storePhone,
     String? receiptHeader,
@@ -182,7 +260,7 @@ class PrinterService {
 
     if (storeAddress != null && storeAddress.isNotEmpty) {
       bytes += generator.text(
-        'Alamat : $storeAddress',
+        'Alamat: $storeAddress',
         styles: const PosStyles(align: PosAlign.center),
       );
     }
@@ -193,7 +271,7 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       );
     }
-
+    bytes += generator.emptyLines(1);
     if (receiptHeader != null && receiptHeader.isNotEmpty) {
       final lines = receiptHeader.split(RegExp(r'\\n|\n'));
       for (var line in lines) {
@@ -358,7 +436,6 @@ class PrinterService {
         fontType: PosFontType.fontB,
       ),
     );
-    bytes += generator.cut();
     return bytes;
   }
 
@@ -375,6 +452,7 @@ class PrinterService {
 
     String formatRupiah(double amount) => currencyFormatter.format(amount);
 
+    // Format waktu ISO → dd/MM HH:mm
     String formatTime(String isoDate) {
       try {
         final date = DateTime.parse(isoDate);
@@ -384,6 +462,7 @@ class PrinterService {
       }
     }
 
+    // === 1. RESET & HEADER ===
     bytes += generator.reset();
     bytes += generator.emptyLines(1);
 
@@ -393,119 +472,73 @@ class PrinterService {
         align: PosAlign.center,
         bold: true,
         height: PosTextSize.size2,
-        width: PosTextSize.size2,
       ),
     );
+
+     bytes += generator.emptyLines(1);
 
     bytes += generator.text(
       'LAPORAN TUTUP SHIFT',
       styles: const PosStyles(align: PosAlign.center, bold: true),
     );
 
-    bytes += generator.hr(ch: '-');
+    bytes += generator.text('--------------------------------');
 
-    bytes += generator.text('Kasir    : ${data.cashierName}');
-    bytes += generator.text('Shift    : ${data.shiftName}');
-    bytes += generator.text('Mulai    : ${formatTime(data.startTime)}');
-    bytes += generator.text('Selesai  : ${formatTime(data.endTime)}');
+    // === 2. INFO SHIFT ===
+    bytes += generator.text('Kasir     : ${data.cashierName}');
+    bytes += generator.text('Shift     : ${data.shiftName}');
+    bytes += generator.text('Mulai     : ${formatTime(data.startTime)}');
+    bytes += generator.text('Selesai   : ${formatTime(data.endTime)}');
 
-    bytes += generator.hr(ch: '-');
+    bytes += generator.text('--------------------------------');
 
-    bytes += generator.row([
-      PosColumn(text: 'Modal Awal', width: 6),
-      PosColumn(
-        text: formatRupiah(data.openingCash),
-        width: 6,
-        styles: const PosStyles(align: PosAlign.right),
-      ),
-    ]);
-
-    bytes += generator.row([
-      PosColumn(text: 'Total Penjualan', width: 6),
-      PosColumn(
-        text: formatRupiah(data.totalSales),
-        width: 6,
-        styles: const PosStyles(align: PosAlign.right),
-      ),
-    ]);
-
-    bytes += generator.row([
-      PosColumn(text: 'Pengeluaran', width: 6),
-      PosColumn(
-        text: '- ${formatRupiah(data.totalExpenses)}',
-        width: 6,
-        styles: const PosStyles(align: PosAlign.right),
-      ),
-    ]);
-
-    bytes += generator.hr(ch: '-');
-
+    // === 3. RINGKASAN KEUANGAN ===
+    bytes += generator.text('Modal Awal   : ${formatRupiah(data.openingCash)}');
     bytes += generator.text(
-      'TOTAL SETORAN',
-      styles: const PosStyles(align: PosAlign.center, bold: true),
+      'Total Penjualan : ${formatRupiah(data.totalSales)}',
+    );
+    bytes += generator.text(
+      'Pengeluaran  : - ${formatRupiah(data.totalExpenses)}',
     );
 
+    bytes += generator.text('--------------------------------');
+
+    // === 4. TOTAL SETORAN (BOLD BESAR) ===
     bytes += generator.text(
-      formatRupiah(data.expectedCash),
-      styles: const PosStyles(
-        align: PosAlign.center,
-        bold: true,
-        height: PosTextSize.size2,
-        width: PosTextSize.size2,
-      ),
+      'TOTAL SETORAN : ${formatRupiah(data.expectedCash)}',
+      styles: const PosStyles(bold: true, height: PosTextSize.size2),
     );
 
-    bytes += generator.hr(ch: '=');
+    bytes += generator.text('--------------------------------');
 
-    bytes += generator.text(
-      'Ringkasan Item:',
-      styles: const PosStyles(bold: true),
-    );
-
-    bytes += generator.hr(ch: '-');
+    // === 5. RINGKASAN ITEM ===
+    bytes += generator.text('Ringkasan Item:');
 
     if (data.soldItems.isNotEmpty) {
       for (var item in data.soldItems) {
-        bytes += generator.row([
-          PosColumn(
-            text: item.name,
-            width: 9,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: 'x ${item.qty}',
-            width: 3,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]);
+        // Nama item dipotong agar muat (max 20 char)
+        final name = item.name.length > 20
+            ? '${item.name.substring(0, 17)}...'
+            : item.name;
+        bytes += generator.text(
+          '$name${' ' * (23 - name.length)}x ${item.qty}',
+        );
       }
-    } else {
-      bytes += generator.text(
-        '- Tidak ada item -',
-        styles: const PosStyles(align: PosAlign.center),
-      );
     }
 
-    bytes += generator.hr(ch: '-');
+    bytes += generator.text('--------------------------------');
 
+    // === 6. TOTAL TRANSAKSI ===
     bytes += generator.text('Total Transaksi : ${data.totalTransactions}');
 
+    // === 7. FOOTER WAKTU CETAK ===
     bytes += generator.emptyLines(1);
-
     bytes += generator.text(
-      'Terima kasih atas kerja kerasnya!',
+      ' Dicetak: ${DateFormat('dd/MM HH:mm').format(DateTime.now())} ',
       styles: const PosStyles(align: PosAlign.center),
     );
-
-    bytes += generator.text(
-      'Sampai jumpa di shift berikutnya.',
-      styles: const PosStyles(align: PosAlign.center),
-    );
-
-    bytes += generator.hr(ch: '=');
 
     bytes += generator.feed(2);
-    bytes += generator.cut();
 
     await printReceipt(bytes);
   }
