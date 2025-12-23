@@ -67,7 +67,7 @@ class _HomePageState extends State<HomePage> {
       // TODO: Ganti logic ini dengan data JAM SHIFT ASLI dari Backend/Bloc
       // Contoh Dummy: Anggap shift berakhir jam 22:00 malam ini
       final now = DateTime.now();
-      final shiftEnd = DateTime(now.year, now.month, now.day, 22, 0); 
+      final shiftEnd = DateTime(now.year, now.month, now.day, 22, 0);
 
       // Jika waktu sekarang melewati waktu shift
       if (now.isAfter(shiftEnd)) {
@@ -88,7 +88,10 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => const _ShiftEndedDialog(),
     );
 
-    if (!mounted) { setState(() => _isDialogShowing = false); return; }
+    if (!mounted) {
+      setState(() => _isDialogShowing = false);
+      return;
+    }
 
     // 2. Dialog Konfirmasi "Ingin menyelesaikan aktivitas?"
     final bool? inginLanjut = await showDialog<bool>(
@@ -97,7 +100,10 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => const _ConfirmationDialog(),
     );
 
-    if (!mounted) { setState(() => _isDialogShowing = false); return; }
+    if (!mounted) {
+      setState(() => _isDialogShowing = false);
+      return;
+    }
 
     if (inginLanjut == true) {
       // User pilih YES (Lanjut kerja) -> Batal Logout
@@ -105,7 +111,7 @@ class _HomePageState extends State<HomePage> {
       // Opsional: Restart timer jika ingin diingatkan lagi nanti
     } else {
       // User pilih NO (Selesai) -> Proses Logout
-      
+
       // 3. Dialog Sukses 3 Detik
       showDialog(
         context: context,
@@ -140,16 +146,30 @@ class _HomePageState extends State<HomePage> {
     // Jika user cancel atau klik luar (null/false)
     if (isPrint != true) return;
 
-    // Jika user pilih PRINT -> Proses Logout
-    // (Opsional: Panggil fungsi print struk close shift di sini)
-    // context.read<DashboardBloc>().add(PrintShiftReportRequested());
-    
-    _performLogout();
+    // [FIX] Jika user pilih PRINT -> Trigger CloseShift, biarkan listener yang handle
+    if (!mounted) return;
+
+    print("🖨️ [UI] User pilih Print, trigger CloseShiftRequested...");
+
+    // Tampilkan loading overlay
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => WillPopScope(
+        onWillPop: () async => false,
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      ),
+    );
+
+    // Trigger Close Shift (Listener AuthBloc akan handle print & navigasi)
+    context.read<AuthBloc>().add(CloseShiftRequested());
   }
 
   // [UTILITY] Fungsi Logout Bersih
   void _performLogout() {
-    context.read<AuthBloc>().add(CloseShiftRequested()); 
+    context.read<AuthBloc>().add(CloseShiftRequested());
     context.read<DashboardBloc>().add(ResetDashboard());
 
     Navigator.of(context).pushAndRemoveUntil(
@@ -159,8 +179,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showPinDialog() {
-    if (_isDialogShowing) return; // Safety check
+    // [FIX DOUBLE DIALOG] Tambahkan log & early return
+    if (_isDialogShowing) {
+      print("⚠️ [DIALOG] PIN Dialog sudah muncul, skip duplikasi.");
+      return;
+    }
+
     setState(() => _isDialogShowing = true);
+    print("✅ [DIALOG] Menampilkan PIN Dialog...");
 
     final authBloc = context.read<AuthBloc>();
 
@@ -220,6 +246,15 @@ class _HomePageState extends State<HomePage> {
       listeners: [
         // --- 1. Listener Auth ---
         BlocListener<AuthBloc, AuthState>(
+          // [FIX PRINT 5x] Tambahkan listenWhen agar hanya trigger 1x
+          listenWhen: (previous, current) {
+            // Trigger jika status berubah atau ada perubahan penting
+            final statusChanged = previous.status != current.status;
+            final authChanged =
+                previous.isAuthenticated != current.isAuthenticated;
+
+            return statusChanged || authChanged;
+          },
           listener: (context, state) {
             print(
               "🔔 [LISTENER AUTH] Status: ${state.status}, ShiftOpen: ${state.isShiftOpen}",
@@ -258,32 +293,98 @@ class _HomePageState extends State<HomePage> {
               context.read<DashboardBloc>().add(FetchMenuRequested());
             }
 
-            // Logout / Tutup Shift Sukses
-            if (state.status == AuthStatus.success && !state.isAuthenticated) {
-              
-              // [LOGIC BARU] Cek apakah ada struk untuk dicetak?
+            // [FIX PRINT 5x] Logout / Tutup Shift Sukses - HANYA JALANKAN 1x
+            if (state.status == AuthStatus.success &&
+                !state.isAuthenticated &&
+                !_isDialogShowing) {
+              // ← GUARD: Cegah eksekusi ulang
+
+              setState(() => _isDialogShowing = true); // ← SET FLAG
+
+              print("🔔 [LISTENER] Logout Sukses! Cek apakah perlu print...");
+
+              // Cek apakah ada struk untuk dicetak
               if (state.closingReceipt != null) {
+                print("🖨️ [UI] Memulai Print Laporan Shift...");
                 ToastUtils.showInfoToast("Mencetak Laporan Shift...");
+
                 // Print Struk
-                context.read<DashboardBloc>().printerService.printShiftReport(state.closingReceipt!);
-              }
+                context.read<DashboardBloc>().printerService.printShiftReport(
+                  state.closingReceipt!,
+                );
 
-              // Bersihkan Dashboard
-              context.read<DashboardBloc>().add(ResetDashboard());
+                // Delay 6 detik untuk memberi waktu print selesai
+                Future.delayed(const Duration(seconds: 6), () {
+                  if (!mounted) return;
 
-              // Delay sedikit agar sempat print sebelum pindah
-              Future.delayed(const Duration(seconds: 2), () {
-                 Navigator.of(context).pushAndRemoveUntil(
+                  print(
+                    "✅ [UI] Print selesai (timeout), navigasi ke AuthPage...",
+                  );
+
+                  // Tutup loading overlay
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+
+                  // Bersihkan Dashboard
+                  context.read<DashboardBloc>().add(ResetDashboard());
+
+                  // Navigasi ke Login
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const AuthPage()),
+                    (route) => false,
+                  );
+
+                  // Reset flag setelah navigasi
+                  setState(() => _isDialogShowing = false);
+                });
+              } else {
+                // Jika tidak perlu print, langsung logout
+                print(
+                  "⚠️ [UI] Tidak ada struk untuk print, langsung logout...",
+                );
+
+                // Tutup loading overlay jika ada
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+
+                // Bersihkan Dashboard
+                context.read<DashboardBloc>().add(ResetDashboard());
+
+                // Navigasi ke Login
+                Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const AuthPage()),
                   (route) => false,
                 );
-              });
+
+                setState(() => _isDialogShowing = false);
+              }
             }
           },
         ),
 
-        // --- 2. Listener Dashboard ---
+        // --- 2. Listener Dashboard [FIX DOUBLE DIALOG] ---
         BlocListener<DashboardBloc, DashboardState>(
+          // [PENTING] listenWhen harus ada di SINI!
+          listenWhen: (previous, current) {
+            // Hanya trigger jika status BARU BERUBAH ke success
+            final statusChanged =
+                previous.status != DashboardStatus.success &&
+                current.status == DashboardStatus.success;
+
+            // ATAU jika ada perubahan data penting (misal isPinEntered berubah)
+            final importantChange =
+                previous.status == DashboardStatus.success &&
+                current.status == DashboardStatus.success &&
+                (previous.isPinEntered != current.isPinEntered);
+
+            print(
+              "🔍 [listenWhen] statusChanged=$statusChanged, importantChange=$importantChange",
+            );
+
+            return statusChanged || importantChange;
+          },
           listener: (context, state) {
             print(
               "🔔 [LISTENER DASHBOARD] Status: ${state.status}, PinEntered: ${state.isPinEntered}",
@@ -299,6 +400,7 @@ class _HomePageState extends State<HomePage> {
                 _showPinDialog();
               }
             }
+
             // Toasts...
             if (state.status == DashboardStatus.expenseSuccess)
               ToastUtils.showSuccessToast("Pengeluaran Berhasil!");
@@ -1877,7 +1979,6 @@ class _HeaderFullContent extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12), // Beri jarak sedikit lebih lega
-          
           // 2. INFO TEKS (JUDUL & KASIR)
           Expanded(
             child: Column(
@@ -1893,23 +1994,27 @@ class _HeaderFullContent extends StatelessWidget {
                     color: kBrandColor,
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
-                    height: 1.1, 
+                    height: 1.1,
                   ),
                 ),
 
                 // B. Nama Shift & Kasir (Dinamis dari Bloc)
                 BlocBuilder<DashboardBloc, DashboardState>(
                   builder: (context, state) {
-                    final shift = state.shiftName.isNotEmpty ? state.shiftName : '-';
-                    final cashier = state.currentOperatorName.isNotEmpty ? state.currentOperatorName : 'Kasir';
+                    final shift = state.shiftName.isNotEmpty
+                        ? state.shiftName
+                        : '-';
+                    final cashier = state.currentOperatorName.isNotEmpty
+                        ? state.currentOperatorName
+                        : 'Kasir';
 
                     return Text(
-                      '${shift}_$cashier', 
+                      '${shift}_$cashier',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: kTextDark, 
-                        fontSize: 12, 
+                        color: kTextDark,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     );
@@ -1939,8 +2044,8 @@ class _HeaderFullContent extends StatelessWidget {
                   child: TextField(
                     onChanged: (value) {
                       context.read<DashboardBloc>().add(
-                            SearchMenuChanged(value),
-                          );
+                        SearchMenuChanged(value),
+                      );
                     },
                     style: const TextStyle(color: Colors.black, fontSize: 14),
                     decoration: const InputDecoration(
@@ -2043,7 +2148,8 @@ class _ManualLogoutDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: () => Navigator.of(context).pop(false), // Cancel
+                      onPressed: () =>
+                          Navigator.of(context).pop(false), // Cancel
                       child: const Text("Cancel"),
                     ),
                   ),
@@ -2060,7 +2166,8 @@ class _ManualLogoutDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: () => Navigator.of(context).pop(true), // Print -> Logout
+                      onPressed: () =>
+                          Navigator.of(context).pop(true), // Print -> Logout
                       child: const Text("Print"),
                     ),
                   ),
@@ -2109,7 +2216,8 @@ class _ConfirmationDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: () => Navigator.of(context).pop(false), // No -> Logout
+                    onPressed: () =>
+                        Navigator.of(context).pop(false), // No -> Logout
                     child: const Text("No"),
                   ),
                 ),
@@ -2123,7 +2231,8 @@ class _ConfirmationDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: () => Navigator.of(context).pop(true), // Yes -> Stay
+                    onPressed: () =>
+                        Navigator.of(context).pop(true), // Yes -> Stay
                     child: const Text("Yes"),
                   ),
                 ),

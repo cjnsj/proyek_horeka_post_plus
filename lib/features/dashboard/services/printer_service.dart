@@ -3,9 +3,14 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:horeka_post_plus/features/dashboard/data/model/shift_receipt_model.dart';
 import 'package:intl/intl.dart';
 import 'package:horeka_post_plus/features/dashboard/data/model/cart_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PrinterService {
   final PrinterManager _printerManager = PrinterManager.instance;
+  
+  // Key untuk SharedPreferences
+  static const String _keyPrinterName = 'saved_printer_name';
+  static const String _keyPrinterAddress = 'saved_printer_address';
 
   // Stream Device
   Stream<PrinterDevice> scanPrinters() {
@@ -17,7 +22,64 @@ class PrinterService {
     return _printerManager.stateBluetooth;
   }
 
-  // Connect
+  // [BARU] Save Printer ke Storage
+  Future<void> savePrinterDevice(PrinterDevice device) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyPrinterName, device.name);
+    await prefs.setString(_keyPrinterAddress, device.address ?? '');
+    print("✅ Printer tersimpan: ${device.name} (${device.address})");
+  }
+
+  // [BARU] Load Printer dari Storage
+  Future<Map<String, String>?> loadSavedPrinter() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString(_keyPrinterName);
+    final address = prefs.getString(_keyPrinterAddress);
+
+    if (name != null && address != null && address.isNotEmpty) {
+      return {'name': name, 'address': address};
+    }
+    return null;
+  }
+
+  // [BARU] Hapus Printer dari Storage
+  Future<void> deleteSavedPrinter() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyPrinterName);
+    await prefs.remove(_keyPrinterAddress);
+    print("🗑️ Printer dihapus dari storage");
+  }
+
+  // [BARU] Auto-Connect ke Printer yang Tersimpan
+  Future<bool> autoConnectSavedPrinter() async {
+    try {
+      final savedPrinter = await loadSavedPrinter();
+      if (savedPrinter == null) {
+        print("⚠️ Tidak ada printer tersimpan, skip auto-connect");
+        return false;
+      }
+
+      print("🔄 Mencoba auto-connect ke: ${savedPrinter['name']}...");
+      
+      await _printerManager.connect(
+        type: PrinterType.bluetooth,
+        model: BluetoothPrinterInput(
+          name: savedPrinter['name']!,
+          address: savedPrinter['address']!,
+          isBle: false,
+          autoConnect: true,
+        ),
+      );
+
+      print("✅ Auto-connect berhasil!");
+      return true;
+    } catch (e) {
+      print("❌ Auto-connect gagal: $e");
+      return false;
+    }
+  }
+
+  // Connect (WITH AUTO-SAVE)
   Future<bool> connectPrinter(PrinterDevice device) async {
     try {
       await _printerManager.connect(
@@ -29,16 +91,28 @@ class PrinterService {
           autoConnect: true,
         ),
       );
+
+      // [BARU] Simpan printer setelah connect berhasil
+      await savePrinterDevice(device);
+      
       return true;
     } catch (e) {
-      print("Gagal konek printer: $e");
+      print("❌ Gagal konek printer: $e");
       return false;
     }
   }
 
-  // Disconnect
+  // Disconnect (TIDAK HAPUS DARI STORAGE)
   Future<void> disconnectPrinter() async {
     await _printerManager.disconnect(type: PrinterType.bluetooth);
+    print("🔌 Printer disconnected (masih tersimpan)");
+  }
+
+  // [BARU] Disconnect & Hapus dari Storage
+  Future<void> deletePrinter() async {
+    await disconnectPrinter();
+    await deleteSavedPrinter();
+    print("🗑️ Printer dihapus total!");
   }
 
   // Kirim Perintah Cetak
@@ -60,8 +134,6 @@ class PrinterService {
     required String paymentMethod,
     required int amountPaid,
     required int change,
-
-    // Parameter Profil Toko
     String partnerName = '',
     String storeName = '', 
     String? storeAddress,
@@ -77,40 +149,30 @@ class PrinterService {
 
     final formatter = NumberFormat('#,###', 'id_ID');
 
-    // [PENTING] 1. Reset Printer & Margin Atas
-    // Ini wajib agar baris pertama tidak hilang/glitch dan style kereset
     bytes += generator.reset();
     bytes += generator.emptyLines(1);
 
-    // [PENTING] 2. Logika Smart Header (Agar Header Utama tidak kosong)
-    // Prioritas: Partner Name -> Store Name -> Default "HOREKA POS"
-    
-    String headerTitle = 'HOREKA POS'; // Default Judul Besar
-    String? subTitle;                  // Judul Kecil (Sub Header)
+    String headerTitle = 'HOREKA POS';
+    String? subTitle;
 
     if (partnerName.isNotEmpty) {
-      // Skenario A: Ada Partner Name (BSS Corp) -> Jadi Judul Besar
       headerTitle = partnerName;
-      // Store Name jadi sub judul (Cabang X)
       if (storeName.isNotEmpty) subTitle = storeName;
     } else if (storeName.isNotEmpty) {
-      // Skenario B: Partner Kosong -> Store Name naik jadi Judul Besar
       headerTitle = storeName;
-      subTitle = null; // Tidak ada sub title agar tidak duplikat
+      subTitle = null;
     }
 
-    // === CETAK HEADER UTAMA (BOLD BESAR) ===
     bytes += generator.text(
       headerTitle,
       styles: const PosStyles(
         align: PosAlign.center,
         bold: true,
-        height: PosTextSize.size2, // Tinggi x2
-        width: PosTextSize.size2,  // Lebar x2
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
       ),
     );
 
-    // === CETAK SUB HEADER (BOLD NORMAL) ===
     if (subTitle != null) {
       bytes += generator.text(
         subTitle,
@@ -118,10 +180,9 @@ class PrinterService {
       );
     }
 
-    // === INFO ALAMAT & TELP ===
     if (storeAddress != null && storeAddress.isNotEmpty) {
       bytes += generator.text(
-        'Alamat : $storeAddress', // Hapus prefix 'Alamat :' agar lebih singkat/muat
+        'Alamat : $storeAddress',
         styles: const PosStyles(align: PosAlign.center),
       );
     }
@@ -133,7 +194,6 @@ class PrinterService {
       );
     }
 
-    // === CUSTOM RECEIPT HEADER (Pesan Sambutan) ===
     if (receiptHeader != null && receiptHeader.isNotEmpty) {
       final lines = receiptHeader.split(RegExp(r'\\n|\n'));
       for (var line in lines) {
@@ -147,7 +207,6 @@ class PrinterService {
       bytes += generator.hr(ch: '-');
     }
 
-    // === INFO META (KASIR, SHIFT, WAKTU) ===
     bytes += generator.text('Kasir    : $cashierName');
     bytes += generator.text('Shift    : $shiftName');
     bytes += generator.text(
@@ -157,18 +216,14 @@ class PrinterService {
 
     bytes += generator.hr(ch: '-');
 
-    // === ITEM LIST (LAYOUT 2 BARIS - FIX TAMPILAN) ===
     for (var item in items) {
       String name = item.product.name;
       int qty = item.quantity;
       int price = item.product.price;
       int itemSubtotal = item.subtotal;
 
-      // Baris 1: Nama Produk (Bold)
       bytes += generator.text(name, styles: const PosStyles(bold: true));
 
-      // Baris 2: Qty x Harga ..... Total
-      // Menggunakan pembagian kolom 7 (kiri) dan 5 (kanan)
       bytes += generator.row([
         PosColumn(
           text: '$qty x ${formatter.format(price)}',
@@ -182,7 +237,6 @@ class PrinterService {
         ),
       ]);
 
-      // Catatan Item
       if (item.note != null && item.note!.isNotEmpty) {
         bytes += generator.text(
           '(${item.note})',
@@ -193,7 +247,6 @@ class PrinterService {
 
     bytes += generator.hr(ch: '-');
 
-    // === SUBTOTAL & TAX ===
     bytes += generator.row([
       PosColumn(text: 'Subtotal', width: 6),
       PosColumn(
@@ -234,7 +287,6 @@ class PrinterService {
 
     bytes += generator.hr(ch: '-');
 
-    // === TOTAL BESAR ===
     bytes += generator.row([
       PosColumn(
         text: 'TOTAL',
@@ -259,7 +311,6 @@ class PrinterService {
 
     bytes += generator.hr(ch: '-');
 
-    // === PEMBAYARAN ===
     String paymentLabel = (paymentMethod == 'CASH') ? 'Tunai' : paymentMethod;
 
     bytes += generator.row([
@@ -282,7 +333,6 @@ class PrinterService {
 
     bytes += generator.emptyLines(1);
 
-    // === FOOTER (Custom atau Default) ===
     if (receiptFooter != null && receiptFooter.isNotEmpty) {
       final lines = receiptFooter.split(RegExp(r'\\n|\n'));
       for (var line in lines) {
@@ -312,48 +362,151 @@ class PrinterService {
     return bytes;
   }
 
-
   Future<void> printShiftReport(ShiftReceiptModel data) async {
     final profile = await CapabilityProfile.load();
     final generator = Generator(PaperSize.mm58, profile);
     List<int> bytes = [];
 
-    final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final currencyFormatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
+
     String formatRupiah(double amount) => currencyFormatter.format(amount);
-    
-    // Header
-    bytes += generator.text(data.branchName, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.text('LAPORAN TUTUP SHIFT', styles: const PosStyles(align: PosAlign.center, bold: true));
-    bytes += generator.hr();
 
-    // Info
-    bytes += generator.text('Kasir : ${data.cashierName}');
-    bytes += generator.text('Shift : ${data.shiftName}');
-    bytes += generator.hr();
+    String formatTime(String isoDate) {
+      try {
+        final date = DateTime.parse(isoDate);
+        return DateFormat('dd/MM HH:mm').format(date);
+      } catch (e) {
+        return '-';
+      }
+    }
 
-    // Keuangan
-    bytes += generator.row([PosColumn(text: 'Modal Awal', width: 6), PosColumn(text: formatRupiah(data.openingCash), width: 6, styles: const PosStyles(align: PosAlign.right))]);
-    bytes += generator.row([PosColumn(text: 'Penjualan', width: 6), PosColumn(text: formatRupiah(data.totalSales), width: 6, styles: const PosStyles(align: PosAlign.right))]);
-    bytes += generator.row([PosColumn(text: 'Pengeluaran', width: 6), PosColumn(text: '- ${formatRupiah(data.totalExpenses)}', width: 6, styles: const PosStyles(align: PosAlign.right))]);
-    bytes += generator.hr();
+    bytes += generator.reset();
+    bytes += generator.emptyLines(1);
 
-    // Total Setoran
-    bytes += generator.text('TOTAL SETORAN', styles: const PosStyles(align: PosAlign.center, bold: true));
-    bytes += generator.text(formatRupiah(data.expectedCash), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.hr();
+    bytes += generator.text(
+      data.branchName,
+      styles: const PosStyles(
+        align: PosAlign.center,
+        bold: true,
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
+      ),
+    );
 
-    // Item
-    bytes += generator.text('Ringkasan Item:', styles: const PosStyles(bold: true));
+    bytes += generator.text(
+      'LAPORAN TUTUP SHIFT',
+      styles: const PosStyles(align: PosAlign.center, bold: true),
+    );
+
+    bytes += generator.hr(ch: '-');
+
+    bytes += generator.text('Kasir    : ${data.cashierName}');
+    bytes += generator.text('Shift    : ${data.shiftName}');
+    bytes += generator.text('Mulai    : ${formatTime(data.startTime)}');
+    bytes += generator.text('Selesai  : ${formatTime(data.endTime)}');
+
+    bytes += generator.hr(ch: '-');
+
+    bytes += generator.row([
+      PosColumn(text: 'Modal Awal', width: 6),
+      PosColumn(
+        text: formatRupiah(data.openingCash),
+        width: 6,
+        styles: const PosStyles(align: PosAlign.right),
+      ),
+    ]);
+
+    bytes += generator.row([
+      PosColumn(text: 'Total Penjualan', width: 6),
+      PosColumn(
+        text: formatRupiah(data.totalSales),
+        width: 6,
+        styles: const PosStyles(align: PosAlign.right),
+      ),
+    ]);
+
+    bytes += generator.row([
+      PosColumn(text: 'Pengeluaran', width: 6),
+      PosColumn(
+        text: '- ${formatRupiah(data.totalExpenses)}',
+        width: 6,
+        styles: const PosStyles(align: PosAlign.right),
+      ),
+    ]);
+
+    bytes += generator.hr(ch: '-');
+
+    bytes += generator.text(
+      'TOTAL SETORAN',
+      styles: const PosStyles(align: PosAlign.center, bold: true),
+    );
+
+    bytes += generator.text(
+      formatRupiah(data.expectedCash),
+      styles: const PosStyles(
+        align: PosAlign.center,
+        bold: true,
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
+      ),
+    );
+
+    bytes += generator.hr(ch: '=');
+
+    bytes += generator.text(
+      'Ringkasan Item:',
+      styles: const PosStyles(bold: true),
+    );
+
+    bytes += generator.hr(ch: '-');
+
     if (data.soldItems.isNotEmpty) {
       for (var item in data.soldItems) {
-        bytes += generator.row([PosColumn(text: item.name, width: 9), PosColumn(text: 'x${item.qty}', width: 3, styles: const PosStyles(align: PosAlign.right))]);
+        bytes += generator.row([
+          PosColumn(
+            text: item.name,
+            width: 9,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: 'x ${item.qty}',
+            width: 3,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]);
       }
     } else {
-      bytes += generator.text('- Tidak ada item -');
+      bytes += generator.text(
+        '- Tidak ada item -',
+        styles: const PosStyles(align: PosAlign.center),
+      );
     }
-    
+
+    bytes += generator.hr(ch: '-');
+
+    bytes += generator.text('Total Transaksi : ${data.totalTransactions}');
+
+    bytes += generator.emptyLines(1);
+
+    bytes += generator.text(
+      'Terima kasih atas kerja kerasnya!',
+      styles: const PosStyles(align: PosAlign.center),
+    );
+
+    bytes += generator.text(
+      'Sampai jumpa di shift berikutnya.',
+      styles: const PosStyles(align: PosAlign.center),
+    );
+
+    bytes += generator.hr(ch: '=');
+
     bytes += generator.feed(2);
     bytes += generator.cut();
+
     await printReceipt(bytes);
   }
 }

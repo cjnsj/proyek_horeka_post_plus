@@ -19,12 +19,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   StreamSubscription? _printerSubscription; // Untuk memantau status koneksi
 
   DashboardBloc({required this.repository})
-      : super(
-          DashboardState(
-            reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
-            reportEndDate: DateTime.now(),
-          ),
-        ) {
+    : super(
+        DashboardState(
+          reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
+          reportEndDate: DateTime.now(),
+        ),
+      ) {
     // --- Session / Lifecycle ---
     on<DashboardStarted>(_onDashboardStarted);
     on<SaveDashboardSession>(_onSaveDashboardSession);
@@ -95,6 +95,17 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   // ================= PRINTER LISTENER & METHODS =================
 
   void _initPrinterListener() {
+    // [BARU] Auto-connect saat app dibuka
+    printerService.autoConnectSavedPrinter().then((success) {
+      if (success) {
+        print("✅ Printer auto-connected!");
+        add(PrinterConnectionUpdated(true));
+      } else {
+        print("⚠️ Tidak ada printer tersimpan atau gagal connect");
+      }
+    });
+
+    // Listen status bluetooth
     _printerSubscription = printerService.bluetoothStatusStream.listen((
       status,
     ) {
@@ -139,10 +150,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // Gunakan DashboardState() baru agar bersih total.
       emit(
         DashboardState(
-          status: DashboardStatus.success, 
-          isPinEntered: false,             
+          status: DashboardStatus.success,
+          isPinEntered: false,
           hasStartingBalance: false,
-          
+
           // Tanggal laporan default
           reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
           reportEndDate: DateTime.now(),
@@ -175,10 +186,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     await prefs.remove('dashboard_session_active');
 
     // 2. HARD RESET STATE
-    emit(DashboardState(
-      reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
-      reportEndDate: DateTime.now(),
-    ));
+    emit(
+      DashboardState(
+        reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
+        reportEndDate: DateTime.now(),
+      ),
+    );
   }
 
   // ================= MENU HANDLERS =================
@@ -401,10 +414,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     // [VALIDASI SHIFT]
     if (!state.isShiftOpen) {
-      emit(state.copyWith(
-        status: DashboardStatus.error,
-        errorMessage: "Toko sedang tutup. Silakan Buka Shift dulu.",
-      ));
+      emit(
+        state.copyWith(
+          status: DashboardStatus.error,
+          errorMessage: "Toko sedang tutup. Silakan Buka Shift dulu.",
+        ),
+      );
       emit(state.copyWith(status: DashboardStatus.success, errorMessage: null));
       return;
     }
@@ -420,12 +435,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         paymentMethod: event.paymentMethod,
         promoCode: state.appliedPromoCode,
       );
-      
+
       // 2. Ambil receipt_number dari response backend
-      final String receiptNumber = transactionResponse['receipt_number'] ?? 
-                                   transactionResponse['transaction_number'] ?? 
-                                   'TRX-ERROR';
-      
+      final String receiptNumber =
+          transactionResponse['receipt_number'] ??
+          transactionResponse['transaction_number'] ??
+          'TRX-ERROR';
+
       print("✅ [BLOC] Receipt Number dari Backend: $receiptNumber");
 
       // 3. AUTO PRINT dengan nomor asli dari backend
@@ -448,9 +464,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           final rHead = freshProfile['receipt_header'] ?? state.receiptHeader;
           final rFoot = freshProfile['receipt_footer'] ?? state.receiptFooter;
           final tName = freshProfile['tax_name'] ?? state.taxName;
-          
-          String opName = freshProfile['current_operator']?['name'] ?? state.currentOperatorName;
-          String sNameShift = freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
+
+          String opName =
+              freshProfile['current_operator']?['name'] ??
+              state.currentOperatorName;
+          String sNameShift =
+              freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
 
           final bytes = await printerService.generateReceipt(
             items: state.cartItems,
@@ -814,7 +833,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       print("📦 DATA PROFIL TOKO DARI API: $profileData");
 
       // 1. Header Info
-      final pName = profileData['partner_name'] ?? ''; 
+      final pName = profileData['partner_name'] ?? '';
       final sName = profileData['branch_name'] ?? '';
       final sAddress = profileData['address'] ?? '';
       final sPhone = profileData['phone_number'] ?? '';
@@ -823,20 +842,24 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // 2. Tax Info
       final tName = profileData['tax_name'] ?? state.taxName;
-      final tPercent = double.tryParse(profileData['tax_percentage']?.toString() ?? '0') ?? 0.0;
+      final tPercent =
+          double.tryParse(profileData['tax_percentage']?.toString() ?? '0') ??
+          0.0;
 
       // 3. Operator & Shift Info
       String opName = 'Kasir';
-      if (profileData['current_operator'] != null && profileData['current_operator'] is Map) {
+      if (profileData['current_operator'] != null &&
+          profileData['current_operator'] is Map) {
         opName = profileData['current_operator']['name'] ?? 'Kasir';
       }
 
       bool shiftOpen = false;
-      String sNameShift = '-'; 
+      String sNameShift = '-';
 
-      if (profileData['current_shift'] != null && profileData['current_shift'] is Map) {
+      if (profileData['current_shift'] != null &&
+          profileData['current_shift'] is Map) {
         shiftOpen = profileData['current_shift']['is_open'] ?? false;
-        sNameShift = profileData['current_shift']['shift_name'] ?? '-'; 
+        sNameShift = profileData['current_shift']['shift_name'] ?? '-';
       }
 
       // 4. Update State
@@ -852,7 +875,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           taxPercentage: tPercent,
           isTaxActive: tPercent > 0,
           currentOperatorName: opName,
-          shiftName: sNameShift, 
+          shiftName: sNameShift,
           isShiftOpen: shiftOpen,
         ),
       );
@@ -921,8 +944,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final rFoot = freshProfile['receipt_footer'] ?? state.receiptFooter;
       final tName = freshProfile['tax_name'] ?? state.taxName;
 
-      String opName = freshProfile['current_operator']?['name'] ?? state.currentOperatorName;
-      String sNameShift = freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
+      String opName =
+          freshProfile['current_operator']?['name'] ??
+          state.currentOperatorName;
+      String sNameShift =
+          freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
 
       final bytes = await printerService.generateReceipt(
         items: state.cartItems,
@@ -941,7 +967,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         receiptHeader: rHead,
         receiptFooter: rFoot,
         taxName: tName,
-        transactionId: "DRAFT-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}",
+        transactionId:
+            "DRAFT-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}",
         paymentMethod: "Draft",
         amountPaid: total,
         change: 0,
@@ -979,14 +1006,26 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final rFoot = freshProfile['receipt_footer'] ?? state.receiptFooter;
       final tName = freshProfile['tax_name'] ?? state.taxName;
 
-      final List<dynamic> rawItems = (tx['items'] ?? tx['transaction_details'] ?? []) as List<dynamic>;
+      final List<dynamic> rawItems =
+          (tx['items'] ?? tx['transaction_details'] ?? []) as List<dynamic>;
       List<CartItem> cartItems = [];
 
       for (var item in rawItems) {
         if (item is! Map) continue;
-        String name = item['product_name']?.toString() ?? item['product']?['product_name']?.toString() ?? 'Item';
+        String name =
+            item['product_name']?.toString() ??
+            item['product']?['product_name']?.toString() ??
+            'Item';
         int qty = int.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
-        double price = double.tryParse((item['price_at_transaction'] ?? item['unit_price'] ?? item['price'] ?? 0).toString()) ?? 0;
+        double price =
+            double.tryParse(
+              (item['price_at_transaction'] ??
+                      item['unit_price'] ??
+                      item['price'] ??
+                      0)
+                  .toString(),
+            ) ??
+            0;
 
         final product = ProductModel(
           productId: '0',
@@ -1000,26 +1039,36 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         cartItems.add(CartItem(product: product, quantity: qty));
       }
 
-      double safeParse(dynamic value) => value == null ? 0.0 : double.tryParse(value.toString()) ?? 0.0;
+      double safeParse(dynamic value) =>
+          value == null ? 0.0 : double.tryParse(value.toString()) ?? 0.0;
       final double total = safeParse(tx['total_amount']);
       final double tax = safeParse(tx['total_tax'] ?? tx['tax_amount']);
-      final double discount = safeParse(tx['total_discount'] ?? tx['discount_amount']);
+      final double discount = safeParse(
+        tx['total_discount'] ?? tx['discount_amount'],
+      );
       final double subtotal = total - tax + discount;
 
-      final String receiptNo = (tx['receipt_number'] ?? tx['transaction_number'] ?? '-').toString();
+      final String receiptNo =
+          (tx['receipt_number'] ?? tx['transaction_number'] ?? '-').toString();
       final String paymentMethod = (tx['payment_method'] ?? 'CASH').toString();
       final String promoCode = (tx['promo_code'] ?? '').toString();
 
       String cashierName = state.currentOperatorName;
-      if (tx['shift'] != null && tx['shift'] is Map && tx['shift']['cashier'] != null && tx['shift']['cashier']['full_name'] != null) {
+      if (tx['shift'] != null &&
+          tx['shift'] is Map &&
+          tx['shift']['cashier'] != null &&
+          tx['shift']['cashier']['full_name'] != null) {
         cashierName = tx['shift']['cashier']['full_name'].toString();
       } else if (tx['cashier_name'] != null) {
         cashierName = tx['cashier_name'].toString();
-      } else if (tx['user'] != null && tx['user'] is Map && tx['user']['full_name'] != null) {
+      } else if (tx['user'] != null &&
+          tx['user'] is Map &&
+          tx['user']['full_name'] != null) {
         cashierName = tx['user']['full_name'].toString();
       }
 
-      String shiftNameReprint = freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
+      String shiftNameReprint =
+          freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
 
       final bytes = await printerService.generateReceipt(
         items: cartItems,

@@ -41,23 +41,27 @@ class AuthPage extends StatelessWidget {
             context.read<AuthBloc>().add(FetchDeviceInfoRequested());
           }
 
-          // [PERBAIKAN UTAMA DISINI]
-          // Jika Login Sukses & Authenticated -> PINDAH KE HOMEPAGE
-          if (state.status == AuthStatus.authenticated &&
-              state.isAuthenticated) {
-            
+          // [FIX DOUBLE NAVIGATION]
+          // Navigasi HANYA jika authenticated DAN belum pindah halaman
+          if (state.isAuthenticated &&
+              ModalRoute.of(context)?.isCurrent == true) {
+            // ← TAMBAHAN: Cek apakah masih di halaman ini
+
             print("✅ [UI] Login Sukses! Navigasi ke HomePage...");
-            
-            // Pindah halaman dan hapus halaman login dari stack (agar tidak bisa back)
-            Navigator.of(context).pushReplacement(
+
+            // Gunakan pushAndRemoveUntil untuk memastikan halaman sebelumnya dihapus semua
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const HomePage()),
+              (route) => false, // Hapus SEMUA route sebelumnya
             );
           }
         },
+
         child: BlocBuilder<AuthBloc, AuthState>(
           builder: (context, state) {
-            final index =
-                images.isEmpty ? 0 : state.backgroundIndex % images.length;
+            final index = images.isEmpty
+                ? 0
+                : state.backgroundIndex % images.length;
 
             return Stack(
               children: [
@@ -83,18 +87,13 @@ class AuthPage extends StatelessWidget {
                 ),
                 // Overlay gelap
                 Positioned.fill(
-                  child: Container(
-                    color: Colors.black.withOpacity(0.3),
-                  ),
+                  child: Container(color: Colors.black.withOpacity(0.3)),
                 ),
                 // Logo kiri atas
                 Positioned(
                   top: 40,
                   left: 40,
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    height: 50,
-                  ),
+                  child: Image.asset('assets/images/logo.png', height: 50),
                 ),
                 // Konten tengah: activation atau login
                 Center(
