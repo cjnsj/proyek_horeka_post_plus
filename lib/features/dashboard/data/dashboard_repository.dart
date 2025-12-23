@@ -68,7 +68,8 @@ class DashboardRepository {
   }
 
   // 3. Buat Transaksi (Langsung Bayar)
-  Future<void> createTransaction({
+  // [PERBAIKAN] Ubah dari Future<void> menjadi Future<Map<String, dynamic>>
+  Future<Map<String, dynamic>> createTransaction({
     required List<CartItem> items,
     required String paymentMethod,
     String? promoCode,
@@ -116,7 +117,8 @@ class DashboardRepository {
         print(
           "✅ [REPO] Transaction Success: ${responseData['data']['receipt_number']}",
         );
-        return;
+        // [PERBAIKAN] Return data response dari backend
+        return responseData['data'] as Map<String, dynamic>;
       } else {
         throw (responseData['message'] ?? 'Gagal memproses transaksi');
       }
