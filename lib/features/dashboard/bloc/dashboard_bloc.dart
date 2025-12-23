@@ -414,14 +414,21 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(state.copyWith(status: DashboardStatus.loading));
 
     try {
-      // 1. Simpan Transaksi
-      await repository.createTransaction(
+      // 1. Simpan Transaksi & AMBIL RESPONSE DARI BACKEND
+      final transactionResponse = await repository.createTransaction(
         items: state.cartItems,
         paymentMethod: event.paymentMethod,
         promoCode: state.appliedPromoCode,
       );
+      
+      // 2. Ambil receipt_number dari response backend
+      final String receiptNumber = transactionResponse['receipt_number'] ?? 
+                                   transactionResponse['transaction_number'] ?? 
+                                   'TRX-ERROR';
+      
+      print("✅ [BLOC] Receipt Number dari Backend: $receiptNumber");
 
-      // 2. AUTO PRINT
+      // 3. AUTO PRINT dengan nomor asli dari backend
       if (state.isPrinterConnected) {
         try {
           int total = state.finalTotalAmount;
@@ -462,7 +469,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
             taxName: tName,
             shiftName: sNameShift,
             cashierName: opName,
-            transactionId: "TRX-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}",
+            transactionId: receiptNumber, // ← GUNAKAN DATA ASLI DARI BACKEND
             paymentMethod: event.paymentMethod,
             amountPaid: paid,
             change: change,
@@ -934,7 +941,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         receiptHeader: rHead,
         receiptFooter: rFoot,
         taxName: tName,
-        transactionId: "TRX-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}",
+        transactionId: "DRAFT-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}",
         paymentMethod: "Draft",
         amountPaid: total,
         change: 0,
