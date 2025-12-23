@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_bloc.dart';
 import 'package:horeka_post_plus/features/dashboard/bloc/dashboard_event.dart';
@@ -92,6 +93,11 @@ class _ReportContentAreaState extends State<_ReportContentArea> {
   @override
   void initState() {
     super.initState();
+
+    // 1. Reset state agar bersih (termasuk sales detail card)
+    context.read<DashboardBloc>().add(ResetReportState());
+
+    // 2. Load data default (opsional, agar langsung tampil data hari ini/bulan ini)
     context.read<DashboardBloc>().add(FetchAllReportsRequested());
   }
 
@@ -746,32 +752,6 @@ class _ItemReportContent extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  SizedBox(
-                    height: 44,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kBrandColor,
-                        foregroundColor: kWhiteColor,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 26,
-                          vertical: 0,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () {},
-                      child: Text(
-                        state.isReportVoidFilter
-                            ? 'Print Void Items Recap'
-                            : 'Print Item-wise Sales Recap',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -1269,11 +1249,35 @@ class _SalesDetailCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    // [LOGIKA BARU DI SINI]
                     onPressed: tx == null
                         ? null
                         : () {
-                            // TODO: Implement Print Logic
-                            print("Print Receipt: ${tx['receipt_number']}");
+                            final bloc = context.read<DashboardBloc>();
+
+                            // 1. Cek koneksi printer
+                            if (!bloc.state.isPrinterConnected) {
+                              Fluttertoast.cancel();
+                              Fluttertoast.showToast(
+                                msg: 'Printer tidak terhubung!',
+                                backgroundColor: Colors.red,
+                                textColor: Colors.white,
+                                gravity: ToastGravity.TOP,
+                              );
+                              return;
+                            }
+
+                            // Panggil Event Reprint
+                            bloc.add(ReprintTransactionRequested(tx));
+
+                            // 3. Tampilkan Toast Sukses
+                            Fluttertoast.cancel();
+                            Fluttertoast.showToast(
+                              msg: 'Mencetak struk...',
+                              backgroundColor: Colors.green,
+                              textColor: Colors.white,
+                              gravity: ToastGravity.TOP,
+                            );
                           },
                     child: const Text('Print receipt'),
                   ),
@@ -1286,7 +1290,7 @@ class _SalesDetailCard extends StatelessWidget {
     );
   }
 
- Widget _buildDetailContent(Map<String, dynamic> tx, NumberFormat currency) {
+  Widget _buildDetailContent(Map<String, dynamic> tx, NumberFormat currency) {
     final receiptNo = tx['receipt_number'] ?? '-';
     final paymentMethod = tx['payment_method'] ?? 'CASH';
 
@@ -1309,7 +1313,7 @@ class _SalesDetailCard extends StatelessWidget {
     final discount = parseAmount(tx['total_discount']);
     final tax = parseAmount(tx['total_tax']);
     final total = parseAmount(tx['total_amount']);
-    
+
     // [PERBAIKAN 1] Hitung Subtotal (Total - Pajak + Diskon)
     final subtotal = total - tax + discount;
 
@@ -1343,9 +1347,10 @@ class _SalesDetailCard extends StatelessWidget {
               final itemTotal = price * qty;
 
               return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // 1. NAMA PRODUK (Kiri - Flexible)
                   Expanded(
+                    flex: 4,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1369,29 +1374,45 @@ class _SalesDetailCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: 16,
-                      right: 6,
-                      bottom: 6,
-                    ),
+
+                  // 2. QTY (Tengah - Fixed Width)
+                  SizedBox(
+                    width: 60, // Lebar tetap untuk kolom Qty
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const Text(
                           "Qty",
-                          style: TextStyle(color: kTextDark, fontSize: 13),
+                          style: TextStyle(
+                            color: kTextDark,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           "$qty",
                           style: const TextStyle(
-                            color: kTextGrey,
-                            fontSize: 12,
+                            color: kTextDark,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  // 3. HARGA TOTAL (Kanan - Fixed Width)
+                  SizedBox(
+                    width: 100, // Lebar tetap untuk harga
+                    child: Text(
+                      currency.format(itemTotal),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: kTextDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -1408,10 +1429,7 @@ class _SalesDetailCard extends StatelessWidget {
               // [PERBAIKAN 2] Tampilkan Baris Subtotal
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: _detailSummaryRow(
-                  "Subtotal", 
-                  currency.format(subtotal)
-                ),
+                child: _detailSummaryRow("Subtotal", currency.format(subtotal)),
               ),
 
               if (discount > 0)
@@ -1420,7 +1438,7 @@ class _SalesDetailCard extends StatelessWidget {
                   child: _detailSummaryRow(
                     "Discount",
                     "-${currency.format(discount)}",
-                    color: Colors.green,
+                    color: kTextDark,
                   ),
                 ),
               if (tax > 0)
@@ -1441,6 +1459,7 @@ class _SalesDetailCard extends StatelessWidget {
       ],
     );
   }
+
   Widget _detailHeaderRow(String label, String value, {bool isBold = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,

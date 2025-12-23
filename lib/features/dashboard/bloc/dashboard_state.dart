@@ -49,6 +49,19 @@ class DashboardState extends Equatable {
   final String taxName;
   final bool isTaxActive;
 
+  // --- Store Profile & Receipt Settings ---
+  final String partnerName; // Nama Mitra (Header Utama)
+  final String storeName;   // Nama Cabang (Sub Header)
+  final String storeAddress;
+  final String storePhone;
+  final String receiptHeader;
+  final String receiptFooter;
+  
+  // --- Operator & Shift (v4.0) ---
+  final String currentOperatorName; // Nama kasir dari API
+  final String shiftName;           // [BARU v4.0] Nama Shift (Pagi/Sore)
+  final bool isShiftOpen;           // Status shift dari API
+
   // --- Queue State ---
   final List<QueueModel> queueList;
   final QueueModel? editingQueue;
@@ -74,7 +87,7 @@ class DashboardState extends Equatable {
   final Map<String, dynamic>? selectedReportTransaction;
 
   // [BARU: Status Koneksi Printer]
-  final bool isPrinterConnected; 
+  final bool isPrinterConnected;
 
   final String? errorMessage;
 
@@ -102,6 +115,20 @@ class DashboardState extends Equatable {
     this.taxPercentage = 0.0,
     this.taxName = '',
     this.isTaxActive = false,
+
+    // Default Store Profile
+    this.partnerName = '',
+    this.storeName = '',
+    this.storeAddress = '',
+    this.storePhone = '',
+    this.receiptHeader = '',
+    this.receiptFooter = '',
+    
+    // Default Operator & Shift
+    this.currentOperatorName = 'Kasir',
+    this.shiftName = '-', // [DEFAULT BARU]
+    this.isShiftOpen = false,
+
     this.queueList = const [],
     this.editingQueue,
     this.transactionList = const [],
@@ -113,7 +140,7 @@ class DashboardState extends Equatable {
     this.reportEndDate,
     this.isReportVoidFilter = false,
     this.paymentMethods = const [],
-    this.selectedReportTransaction, 
+    this.selectedReportTransaction,
     this.isPrinterConnected = false, // Default Merah (Belum konek)
     this.errorMessage,
   });
@@ -149,6 +176,20 @@ class DashboardState extends Equatable {
     double? taxPercentage,
     String? taxName,
     bool? isTaxActive,
+
+    // Store Profile
+    String? partnerName,
+    String? storeName,
+    String? storeAddress,
+    String? storePhone,
+    String? receiptHeader,
+    String? receiptFooter,
+    
+    // Operator & Shift (v4.0)
+    String? currentOperatorName,
+    String? shiftName, // [PARAM BARU]
+    bool? isShiftOpen,
+
     List<QueueModel>? queueList,
     QueueModel? editingQueue,
     bool clearEditingQueue = false,
@@ -162,15 +203,40 @@ class DashboardState extends Equatable {
     bool? isReportVoidFilter,
     List<PaymentMethodModel>? paymentMethods,
     Map<String, dynamic>? selectedReportTransaction,
-    
+
     // Parameter Printer
     bool? isPrinterConnected,
-    
+
+    // [TAMBAHAN PARAMETER INI UNTUK RESET]
+    bool resetReportData = false, // Default false
+
     String? errorMessage,
   }) {
     return DashboardState(
       status: status ?? this.status,
-      reportStatus: reportStatus ?? this.reportStatus,
+      // [LOGIKA RESET LAPORAN LENGKAP]
+      reportStatus: resetReportData ? DashboardStatus.initial : (reportStatus ?? this.reportStatus),
+      
+      salesReport: resetReportData ? null : (salesReport ?? this.salesReport),
+      itemReport: resetReportData ? [] : (itemReport ?? this.itemReport),
+      expenseReport: resetReportData ? null : (expenseReport ?? this.expenseReport),
+      
+      // Reset Detail Transaksi (Card Kanan)
+      selectedReportTransaction: resetReportData 
+          ? null 
+          : (selectedReportTransaction ?? this.selectedReportTransaction),
+      
+      // Reset Tanggal ke Default (30 hari terakhir)
+      reportStartDate: resetReportData 
+          ? DateTime.now().subtract(const Duration(days: 30)) 
+          : (reportStartDate ?? this.reportStartDate),
+      reportEndDate: resetReportData 
+          ? DateTime.now() 
+          : (reportEndDate ?? this.reportEndDate),
+          
+      // Reset Filter Void
+      isReportVoidFilter: resetReportData ? false : (isReportVoidFilter ?? this.isReportVoidFilter),
+
       isPinEntered: isPinEntered ?? this.isPinEntered,
       hasStartingBalance: hasStartingBalance ?? this.hasStartingBalance,
       products: products ?? this.products,
@@ -193,20 +259,27 @@ class DashboardState extends Equatable {
       taxPercentage: taxPercentage ?? this.taxPercentage,
       taxName: taxName ?? this.taxName,
       isTaxActive: isTaxActive ?? this.isTaxActive,
+
+      // Store Profile & Shift
+      partnerName: partnerName ?? this.partnerName,
+      storeName: storeName ?? this.storeName,
+      storeAddress: storeAddress ?? this.storeAddress,
+      storePhone: storePhone ?? this.storePhone,
+      receiptHeader: receiptHeader ?? this.receiptHeader,
+      receiptFooter: receiptFooter ?? this.receiptFooter,
+      
+      currentOperatorName: currentOperatorName ?? this.currentOperatorName,
+      shiftName: shiftName ?? this.shiftName, // [ASSIGN BARU]
+      isShiftOpen: isShiftOpen ?? this.isShiftOpen,
+
       queueList: queueList ?? this.queueList,
       editingQueue: clearEditingQueue
           ? null
           : (editingQueue ?? this.editingQueue),
       transactionList: transactionList ?? this.transactionList,
       selectedTransaction: selectedTransaction ?? this.selectedTransaction,
-      salesReport: salesReport ?? this.salesReport,
-      itemReport: itemReport ?? this.itemReport,
-      expenseReport: expenseReport ?? this.expenseReport,
-      reportStartDate: reportStartDate ?? this.reportStartDate,
-      reportEndDate: reportEndDate ?? this.reportEndDate,
-      isReportVoidFilter: isReportVoidFilter ?? this.isReportVoidFilter,
+      
       paymentMethods: paymentMethods ?? this.paymentMethods,
-      selectedReportTransaction: selectedReportTransaction ?? this.selectedReportTransaction,
       isPrinterConnected: isPrinterConnected ?? this.isPrinterConnected,
       errorMessage: errorMessage ?? this.errorMessage,
     );
@@ -233,6 +306,17 @@ class DashboardState extends Equatable {
     taxPercentage,
     taxName,
     isTaxActive,
+    // [BARU] Props Store Profile & Shift
+    partnerName,
+    storeName,
+    storeAddress,
+    storePhone,
+    receiptHeader,
+    receiptFooter,
+    currentOperatorName,
+    shiftName, // [PROPS BARU]
+    isShiftOpen,
+    
     queueList,
     editingQueue,
     transactionList,
@@ -244,8 +328,8 @@ class DashboardState extends Equatable {
     reportEndDate,
     isReportVoidFilter,
     paymentMethods,
-    selectedReportTransaction, 
-    isPrinterConnected, // [JANGAN LUPA: Tambahkan ke Props]
+    selectedReportTransaction,
+    isPrinterConnected,
     errorMessage,
   ];
 }

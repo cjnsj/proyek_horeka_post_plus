@@ -11,15 +11,24 @@ abstract class DashboardEvent extends Equatable {
 
 // --- Session ---
 class DashboardStarted extends DashboardEvent {}
+
 class SaveDashboardSession extends DashboardEvent {}
 
 // --- Menu ---
 class FetchMenuRequested extends DashboardEvent {}
+
 class SelectCategory extends DashboardEvent {
   final String category;
   const SelectCategory(this.category);
   @override
   List<Object?> get props => [category];
+}
+
+class SearchMenuChanged extends DashboardEvent {
+  final String query;
+  const SearchMenuChanged(this.query);
+  @override
+  List<Object?> get props => [query];
 }
 
 // --- Cart ---
@@ -54,9 +63,15 @@ class CalculateTransactionRequested extends DashboardEvent {}
 // --- Transaction & Expense ---
 class CreateTransactionRequested extends DashboardEvent {
   final String paymentMethod;
-  const CreateTransactionRequested({required this.paymentMethod});
+  final int? amountPaid; // [DITAMBAHKAN] Agar bisa menampung nominal bayar
+
+  const CreateTransactionRequested({
+    required this.paymentMethod,
+    this.amountPaid, // [DITAMBAHKAN]
+  });
+
   @override
-  List<Object?> get props => [paymentMethod];
+  List<Object?> get props => [paymentMethod, amountPaid];
 }
 
 class CreateExpenseRequested extends DashboardEvent {
@@ -103,7 +118,10 @@ class FetchCurrentShiftTransactions extends DashboardEvent {}
 class RequestVoidTransaction extends DashboardEvent {
   final String transactionId;
   final String reason;
-  const RequestVoidTransaction({required this.transactionId, required this.reason});
+  const RequestVoidTransaction({
+    required this.transactionId,
+    required this.reason,
+  });
   @override
   List<Object?> get props => [transactionId, reason];
 }
@@ -125,6 +143,9 @@ class SearchTransactionRequested extends DashboardEvent {
 // --- Report ---
 class FetchAllReportsRequested extends DashboardEvent {}
 
+// [TAMBAHKAN INI]
+class ResetReportState extends DashboardEvent {}
+
 class ToggleReportVoidFilter extends DashboardEvent {
   final bool isVoid;
   const ToggleReportVoidFilter(this.isVoid);
@@ -132,7 +153,6 @@ class ToggleReportVoidFilter extends DashboardEvent {
   List<Object?> get props => [isVoid];
 }
 
-// [KODE YANG SEBELUMNYA HILANG - SUDAH DIKEMBALIKAN]
 class ReportDateChanged extends DashboardEvent {
   final DateTime? startDate;
   final DateTime? endDate;
@@ -143,40 +163,39 @@ class ReportDateChanged extends DashboardEvent {
   List<Object?> get props => [startDate, endDate];
 }
 
-// --- Tax & Payment Settings ---
-class FetchTaxSettingsRequested extends DashboardEvent {}
-class FetchPaymentMethodsRequested extends DashboardEvent {}
-
-// [TAMBAHKAN INI DI BAGIAN REPORT]
 class SelectReportTransaction extends DashboardEvent {
   final Map<String, dynamic> transaction;
   const SelectReportTransaction(this.transaction);
-  
+
   @override
   List<Object?> get props => [transaction];
 }
 
-// [TAMBAHAN] Event untuk mereset pilihan transaksi laporan
 class ResetReportSelection extends DashboardEvent {}
 
+// --- Tax & Payment Settings ---
+class FetchTaxSettingsRequested extends DashboardEvent {}
 
-// Tambahkan di paling bawah atau di grup Menu
-class SearchMenuChanged extends DashboardEvent {
-  final String query;
-  const SearchMenuChanged(this.query);
-  @override
-  List<Object?> get props => [query];
-}
+// [TAMBAHAN BARU] Event untuk ambil Profil Toko (Header/Footer Struk)
+class FetchStoreProfileRequested extends DashboardEvent {}
+
+class FetchPaymentMethodsRequested extends DashboardEvent {}
 
 // --- Printer Events ---
-
 class PrintReceiptRequested extends DashboardEvent {
-  // Opsional: kirim data transaksi spesifik jika mencetak ulang riwayat
-  // Jika kosong, gunakan data cart saat ini
-  const PrintReceiptRequested(); 
+  const PrintReceiptRequested();
 }
 
-// [TAMBAHAN BARU] Event untuk update status koneksi printer (Hijau/Merah)
+// [TAMBAHAN BARU] Event khusus untuk reprint dari history/report
+class ReprintTransactionRequested extends DashboardEvent {
+  final Map<String, dynamic> transaction;
+
+  const ReprintTransactionRequested(this.transaction);
+
+  @override
+  List<Object?> get props => [transaction];
+}
+
 class PrinterConnectionUpdated extends DashboardEvent {
   final bool isConnected;
   const PrinterConnectionUpdated(this.isConnected);
@@ -184,3 +203,7 @@ class PrinterConnectionUpdated extends DashboardEvent {
   @override
   List<Object?> get props => [isConnected];
 }
+
+
+// [TAMBAHKAN INI DI PALING BAWAH]
+class ResetDashboard extends DashboardEvent {}

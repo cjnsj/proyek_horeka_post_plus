@@ -1,7 +1,7 @@
 // lib/core/constants/app_constants.dart
 class AppConstants {
   // API Base URL sesuai dokumentasi L0
-  static const String apiBaseUrl = 'http://192.168.1.8:3001/api';
+  static const String apiBaseUrl = 'http://192.168.1.9:3001/api';
   
   // App Info
   static const String appName = 'Horeka Post Plus';

@@ -28,8 +28,6 @@ class _LoginFormState extends State<LoginForm> {
   @override
   void initState() {
     super.initState();
-    // PENTING: jangan panggil FetchDeviceInfoRequested di sini
-    // supaya tidak spam request. Sudah dipanggil di AuthPage listener.
   }
 
   @override
@@ -88,7 +86,7 @@ class _LoginFormState extends State<LoginForm> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.status == AuthStatus.error) {
-          ToastUtils.showErrorToast(state.errorMessage ?? "Unknown error");
+          ToastUtils.showErrorToast(state.errorMessage ?? "");
         }
 
         if (state.status == AuthStatus.authenticated) {

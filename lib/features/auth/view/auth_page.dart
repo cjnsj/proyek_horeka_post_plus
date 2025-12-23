@@ -6,6 +6,7 @@ import 'package:horeka_post_plus/features/auth/bloc/auth_event.dart';
 import 'package:horeka_post_plus/features/auth/bloc/auth_state.dart';
 import 'package:horeka_post_plus/features/auth/view/widgets/activation_form.dart';
 import 'package:horeka_post_plus/features/auth/view/widgets/login_form.dart';
+import 'package:horeka_post_plus/features/dashboard/view/home_page.dart'; // [PENTING] Import HomePage
 
 class AuthPage extends StatelessWidget {
   const AuthPage({super.key});
@@ -40,10 +41,17 @@ class AuthPage extends StatelessWidget {
             context.read<AuthBloc>().add(FetchDeviceInfoRequested());
           }
 
-          // Login sukses → tidak perlu clear toast karena otomatis hilang
+          // [PERBAIKAN UTAMA DISINI]
+          // Jika Login Sukses & Authenticated -> PINDAH KE HOMEPAGE
           if (state.status == AuthStatus.authenticated &&
               state.isAuthenticated) {
-            // Toast akan otomatis hilang
+            
+            print("✅ [UI] Login Sukses! Navigasi ke HomePage...");
+            
+            // Pindah halaman dan hapus halaman login dari stack (agar tidak bisa back)
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomePage()),
+            );
           }
         },
         child: BlocBuilder<AuthBloc, AuthState>(

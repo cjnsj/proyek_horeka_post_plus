@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:horeka_post_plus/features/dashboard/data/model/shift_receipt_model.dart';
 
 // [PERBAIKAN] Menambahkan 'unauthenticated' ke dalam enum
 enum AuthStatus {
@@ -30,6 +31,7 @@ class AuthState extends Equatable {
   // Data sementara setelah validasi PIN berhasil
   final String? tempCashierId;
   final String? tempCashierName;
+  final ShiftReceiptModel? closingReceipt; // [TAMBAH INI]
 
   const AuthState({
     this.status = AuthStatus.initial,
@@ -43,6 +45,7 @@ class AuthState extends Equatable {
     this.schedules = const [],
     this.backgroundIndex = 0,
     this.tempCashierId,
+    this.closingReceipt, // [TAMBAH INI]
     this.tempCashierName,
   });
 
@@ -57,6 +60,7 @@ class AuthState extends Equatable {
     String? branchName,
     List<dynamic>? schedules,
     int? backgroundIndex,
+    ShiftReceiptModel? closingReceipt, // [TAMBAH INI]
     String? tempCashierId,
     String? tempCashierName,
   }) {
@@ -73,6 +77,7 @@ class AuthState extends Equatable {
       backgroundIndex: backgroundIndex ?? this.backgroundIndex,
       tempCashierId: tempCashierId ?? this.tempCashierId,
       tempCashierName: tempCashierName ?? this.tempCashierName,
+      closingReceipt: closingReceipt ?? this.closingReceipt, // [TAMBAH INI]
     );
   }
 
@@ -90,5 +95,6 @@ class AuthState extends Equatable {
     backgroundIndex,
     tempCashierId,
     tempCashierName,
+    closingReceipt,
   ];
 }

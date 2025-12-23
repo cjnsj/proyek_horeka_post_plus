@@ -1,3 +1,4 @@
+import 'dart:async'; // [TAMBAHAN] Untuk Timer
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -37,6 +38,7 @@ class _HomePageState extends State<HomePage> {
   int _index = 0;
   // [PERBAIKAN] Flag untuk mencegah dialog muncul tumpuk
   bool _isDialogShowing = false;
+  Timer? _shiftTimer; // [BARU] Timer untuk cek shift otomatis
 
   @override
   void initState() {
@@ -45,6 +47,115 @@ class _HomePageState extends State<HomePage> {
       '🚀 [DEBUG UI] HomePage initState berjalan. Memanggil DashboardStarted...',
     ); // <--- DEBUG 7
     context.read<DashboardBloc>().add(DashboardStarted());
+
+    // [BARU] Mulai Timer Cek Shift Otomatis
+    _startShiftCheckTimer();
+  }
+
+  @override
+  void dispose() {
+    _shiftTimer?.cancel(); // [BARU] Matikan timer saat widget didispose
+    super.dispose();
+  }
+
+  // [LOGIC 1] TIMER CEK SHIFT (AUTO LOGOUT)
+  void _startShiftCheckTimer() {
+    // Cek setiap 1 menit (sesuaikan kebutuhan)
+    _shiftTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (_isDialogShowing) return; // Jangan ganggu jika ada dialog
+
+      // TODO: Ganti logic ini dengan data JAM SHIFT ASLI dari Backend/Bloc
+      // Contoh Dummy: Anggap shift berakhir jam 22:00 malam ini
+      final now = DateTime.now();
+      final shiftEnd = DateTime(now.year, now.month, now.day, 22, 0); 
+
+      // Jika waktu sekarang melewati waktu shift
+      if (now.isAfter(shiftEnd)) {
+        _handleAutoLogoutFlow();
+        timer.cancel(); // Stop timer agar tidak muncul terus
+      }
+    });
+  }
+
+  // [LOGIC 2] ALUR AUTO LOGOUT (Shift Ended -> Yes/No -> Success -> Logout)
+  Future<void> _handleAutoLogoutFlow() async {
+    setState(() => _isDialogShowing = true);
+
+    // 1. Dialog "Shift Ended"
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _ShiftEndedDialog(),
+    );
+
+    if (!mounted) { setState(() => _isDialogShowing = false); return; }
+
+    // 2. Dialog Konfirmasi "Ingin menyelesaikan aktivitas?"
+    final bool? inginLanjut = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _ConfirmationDialog(),
+    );
+
+    if (!mounted) { setState(() => _isDialogShowing = false); return; }
+
+    if (inginLanjut == true) {
+      // User pilih YES (Lanjut kerja) -> Batal Logout
+      setState(() => _isDialogShowing = false);
+      // Opsional: Restart timer jika ingin diingatkan lagi nanti
+    } else {
+      // User pilih NO (Selesai) -> Proses Logout
+      
+      // 3. Dialog Sukses 3 Detik
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const _SuccessDialog(),
+      );
+
+      await Future.delayed(const Duration(seconds: 3));
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Tutup dialog sukses
+
+      // 4. Eksekusi Logout
+      _performLogout();
+    }
+  }
+
+  // [LOGIC 3] ALUR MANUAL LOGOUT (Tombol Side Menu -> Cancel/Print)
+  Future<void> _handleManualLogout() async {
+    if (_isDialogShowing) return;
+    setState(() => _isDialogShowing = true);
+
+    // 1. Dialog "Akhiri Shift Sekarang?"
+    final bool? isPrint = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _ManualLogoutDialog(),
+    );
+
+    setState(() => _isDialogShowing = false);
+
+    // Jika user cancel atau klik luar (null/false)
+    if (isPrint != true) return;
+
+    // Jika user pilih PRINT -> Proses Logout
+    // (Opsional: Panggil fungsi print struk close shift di sini)
+    // context.read<DashboardBloc>().add(PrintShiftReportRequested());
+    
+    _performLogout();
+  }
+
+  // [UTILITY] Fungsi Logout Bersih
+  void _performLogout() {
+    context.read<AuthBloc>().add(CloseShiftRequested()); 
+    context.read<DashboardBloc>().add(ResetDashboard());
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthPage()),
+      (route) => false,
+    );
   }
 
   void _showPinDialog() {
@@ -147,12 +258,26 @@ class _HomePageState extends State<HomePage> {
               context.read<DashboardBloc>().add(FetchMenuRequested());
             }
 
-            // Logout
+            // Logout / Tutup Shift Sukses
             if (state.status == AuthStatus.success && !state.isAuthenticated) {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const AuthPage()),
-                (route) => false,
-              );
+              
+              // [LOGIC BARU] Cek apakah ada struk untuk dicetak?
+              if (state.closingReceipt != null) {
+                ToastUtils.showInfoToast("Mencetak Laporan Shift...");
+                // Print Struk
+                context.read<DashboardBloc>().printerService.printShiftReport(state.closingReceipt!);
+              }
+
+              // Bersihkan Dashboard
+              context.read<DashboardBloc>().add(ResetDashboard());
+
+              // Delay sedikit agar sempat print sebelum pindah
+              Future.delayed(const Duration(seconds: 2), () {
+                 Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AuthPage()),
+                  (route) => false,
+                );
+              });
             }
           },
         ),
@@ -305,6 +430,8 @@ class _HomePageState extends State<HomePage> {
                                             );
                                           }
                                         },
+                                        // [PENTING] Callback Manual Logout
+                                        onLogout: _handleManualLogout,
                                       ),
                                       const SizedBox(width: 16),
                                       if (_index == 0)
@@ -966,9 +1093,7 @@ class _CartContent extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(
-                height: 225,
-              ), 
+              const SizedBox(height: 225),
               Container(height: 1, color: kBorderColor),
               const Spacer(), // Dorong sisa ruang ke bawah
             ],
@@ -1001,7 +1126,7 @@ class _CartContent extends StatelessWidget {
                 },
               ),
             ),
-            
+
             // --- FOOTER (Promo, Summary, Buttons) ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1016,11 +1141,11 @@ class _CartContent extends StatelessWidget {
               child: _SummaryColumn(),
             ),
             const SizedBox(height: 16),
-            
+
             Container(height: 1, color: kBorderColor),
 
             const SizedBox(height: 8),
-            
+
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Row(
@@ -1039,7 +1164,9 @@ class _CartContent extends StatelessWidget {
                       ),
                       onPressed: () async {
                         if (state.cartItems.isEmpty) {
-                          ToastUtils.showWarningToast('Keranjang masih kosong!');
+                          ToastUtils.showWarningToast(
+                            'Keranjang masih kosong!',
+                          );
                           return;
                         }
                         if (state.editingQueue != null) {
@@ -1255,10 +1382,7 @@ class _SummaryColumn extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 1. Subtotal
-            _SummaryRow(
-              label: 'Subtotal', 
-              value: formatter.format(subtotal)
-            ),
+            _SummaryRow(label: 'Subtotal', value: formatter.format(subtotal)),
 
             // 2. LOOPING DISKON DARI SERVER
             if (promos.isNotEmpty) ...[
@@ -1303,7 +1427,7 @@ class _SummaryColumn extends StatelessWidget {
 
             // 3. Tax (Pajak)
             const SizedBox(height: 4),
-            if (state.taxPercentage > 0) 
+            if (state.taxPercentage > 0)
               _SummaryRow(
                 label: '', // Kosongkan label biasa
                 customLabel: Text.rich(
@@ -1330,7 +1454,7 @@ class _SummaryColumn extends StatelessWidget {
                 value: '+ ${formatter.format(tax)}',
                 valueColor: Colors.black, // Nilai Rp warna Hijau
               )
-            else 
+            else
               // Jika tidak ada persentase (Flat tax atau 0), tampilkan biasa
               _SummaryRow(
                 label: 'Tax',
@@ -1353,12 +1477,13 @@ class _SummaryColumn extends StatelessWidget {
     );
   }
 }
+
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isBold;
   final Widget? customLabel; // [BARU] Untuk teks kombinasi warna
-  final Color? valueColor;   // [BARU] Khusus untuk warna harga
+  final Color? valueColor; // [BARU] Khusus untuk warna harga
   final String? strikeThroughValue;
 
   const _SummaryRow({
@@ -1367,7 +1492,7 @@ class _SummaryRow extends StatelessWidget {
     required this.value,
     this.isBold = false,
     this.customLabel, // [BARU]
-    this.valueColor,  // [BARU]
+    this.valueColor, // [BARU]
     this.strikeThroughValue,
   });
 
@@ -1377,7 +1502,9 @@ class _SummaryRow extends StatelessWidget {
     final valueStyle = TextStyle(
       color: valueColor ?? kTextDark, // Gunakan valueColor jika ada
       fontSize: 13,
-      fontWeight: isBold ? FontWeight.w700 : FontWeight.w500, // Value biasanya lebih tebal dikit
+      fontWeight: isBold
+          ? FontWeight.w700
+          : FontWeight.w500, // Value biasanya lebih tebal dikit
     );
 
     // Style dasar untuk Label biasa
@@ -1418,6 +1545,7 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
+
 class _PromoCodeButton extends StatelessWidget {
   const _PromoCodeButton();
 
@@ -1502,8 +1630,13 @@ class _PromoCodeButton extends StatelessWidget {
 class _SideMenu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
+  final VoidCallback onLogout; // [BARU] Tambahkan Callback ini
 
-  const _SideMenu({required this.index, required this.onTap});
+  const _SideMenu({
+    required this.index,
+    required this.onTap,
+    required this.onLogout, // [BARU] Tambahkan Callback ini
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1583,24 +1716,13 @@ class _SideMenu extends StatelessWidget {
 
           const Spacer(),
 
-          // --- Logout ---
+          // --- Logout (MANUAL LOGOUT) ---
           Padding(
             padding: const EdgeInsets.only(bottom: 24, top: 8),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () async {
-                  final shouldLogout = await showDialog<bool>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const _ShiftEndedDialog(),
-                  );
-
-                  if (shouldLogout == true) {
-                    // ignore: use_build_context_synchronously
-                    context.read<AuthBloc>().add(CloseShiftRequested());
-                  }
-                },
+                onTap: onLogout, // [UPDATE] Panggil callback onLogout
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.all(
@@ -1693,6 +1815,7 @@ class _ShiftEndedDialog extends StatelessWidget {
     );
   }
 }
+// ================== HEADER WIDGETS ==================
 
 class _TopHeaderGlobal extends StatelessWidget {
   final int currentIndex;
@@ -1703,6 +1826,7 @@ class _TopHeaderGlobal extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isHomePage = currentIndex == 0;
+    // Sesuaikan lebar header jika di Home (lebar) atau di menu lain (kecil/logo saja)
     final headerWidth = isHomePage ? screenWidth * 0.628 : 80.0;
 
     return Align(
@@ -1738,10 +1862,11 @@ class _HeaderFullContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      // Padding vertical dikurangi sedikit agar muat 2 baris teks
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          // Logo
+          // 1. LOGO
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.asset(
@@ -1751,27 +1876,54 @@ class _HeaderFullContent extends StatelessWidget {
               fit: BoxFit.cover,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12), // Beri jarak sedikit lebih lega
+          
+          // 2. INFO TEKS (JUDUL & KASIR)
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // A. Judul Aplikasi
+                const Text(
+                  'Horeka Pos+',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: kBrandColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1, 
+                  ),
+                ),
 
-          // Judul
-          const Flexible(
-            child: Text(
-              'Horeka Pos+',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: kBrandColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-              ),
+                // B. Nama Shift & Kasir (Dinamis dari Bloc)
+                BlocBuilder<DashboardBloc, DashboardState>(
+                  builder: (context, state) {
+                    final shift = state.shiftName.isNotEmpty ? state.shiftName : '-';
+                    final cashier = state.currentOperatorName.isNotEmpty ? state.currentOperatorName : 'Kasir';
+
+                    return Text(
+                      '${shift}_$cashier', 
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: kTextDark, 
+                        fontSize: 12, 
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
 
-          const Spacer(),
+          // 3. SPACER & SEARCH
           const Spacer(),
           const Spacer(),
 
-          // Search Bar
+          // 4. SEARCH BAR
           Container(
             constraints: const BoxConstraints(maxWidth: 260),
             height: 48,
@@ -1785,17 +1937,12 @@ class _HeaderFullContent extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: TextField(
-                    // [LOGIC PENCARIAN]
                     onChanged: (value) {
                       context.read<DashboardBloc>().add(
-                        SearchMenuChanged(value),
-                      );
+                            SearchMenuChanged(value),
+                          );
                     },
-                    // [UBAH WARNA TEKS INPUT DISINI]
-                    style: const TextStyle(
-                      color: Colors.black, // Warna teks jadi hitam
-                      fontSize: 14, // Ukuran font (opsional)
-                    ),
+                    style: const TextStyle(color: Colors.black, fontSize: 14),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Find menu ',
@@ -1808,7 +1955,6 @@ class _HeaderFullContent extends StatelessWidget {
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.all(8),
-
                   child: SvgPicture.asset(
                     'assets/icons/search.svg',
                     width: 18,
@@ -1837,6 +1983,192 @@ class _HeaderLogoOnly extends StatelessWidget {
           width: 45,
           height: 45,
           fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
+// ================== DIALOG BARU (TAMBAHAN) ==================
+
+// 1. Dialog untuk Logout Manual (Pilihan Cancel / Print)
+class _ManualLogoutDialog extends StatelessWidget {
+  const _ManualLogoutDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: 400,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: kWhiteColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Icon(Icons.print, color: Colors.green, size: 28),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Akhiri Shift Sekarang?",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Pilih \"Print\" untuk mencetak laporan penutupan kas.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.black),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 45,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepOrange,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(false), // Cancel
+                      child: const Text("Cancel"),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: SizedBox(
+                    height: 45,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4B49AC),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(true), // Print -> Logout
+                      child: const Text("Print"),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 2. Dialog Konfirmasi Lanjut Kerja (Untuk Auto Logout)
+class _ConfirmationDialog extends StatelessWidget {
+  const _ConfirmationDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Ingin menyelesaikan aktivitas sebelum mengakhiri shift?",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: kTextDark,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(false), // No -> Logout
+                    child: const Text("No"),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kBrandColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true), // Yes -> Stay
+                    child: const Text("Yes"),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 3. Dialog Sukses (Muncul 3 detik)
+class _SuccessDialog extends StatelessWidget {
+  const _SuccessDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        width: 450,
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Kerja bagus!",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              "“Terimakasih, Sampai Jumpa Kembali”",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontStyle: FontStyle.italic,
+                color: kTextGrey,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -13,12 +13,11 @@ import 'package:horeka_post_plus/features/dashboard/data/queue_model.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final DashboardRepository repository;
-  
+
   // [INTEGRASI PRINTER]
   final PrinterService printerService = PrinterService();
   StreamSubscription? _printerSubscription; // Untuk memantau status koneksi
 
-  // [PERBAIKAN] Inisialisasi state dengan tanggal hari ini agar tidak null
   DashboardBloc({required this.repository})
       : super(
           DashboardState(
@@ -62,6 +61,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
     // --- Report ---
     on<FetchAllReportsRequested>(_onFetchAllReportsRequested);
+    on<ResetReportState>(_onResetReportState);
     on<ToggleReportVoidFilter>(_onToggleReportVoidFilter);
     on<ReportDateChanged>(_onReportDateChanged);
     on<SelectReportTransaction>(_onSelectReportTransaction);
@@ -70,12 +70,19 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     // --- Tax Settings ---
     on<FetchTaxSettingsRequested>(_onFetchTaxSettings);
 
+    // --- Store Profile (Header/Footer Struk) ---
+    on<FetchStoreProfileRequested>(_onFetchStoreProfile);
+
     // --- Payment Methods ---
     on<FetchPaymentMethodsRequested>(_onFetchPaymentMethodsRequested);
 
     // --- Printer Handlers ---
     on<PrintReceiptRequested>(_onPrintReceiptRequested);
-    
+    on<ReprintTransactionRequested>(_onReprintTransactionRequested);
+
+    // [RESET HANDLER]
+    on<ResetDashboard>(_onResetDashboard);
+
     // Handler untuk update status koneksi printer (Hijau/Merah)
     on<PrinterConnectionUpdated>((event, emit) {
       emit(state.copyWith(isPrinterConnected: event.isConnected));
@@ -88,9 +95,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   // ================= PRINTER LISTENER & METHODS =================
 
   void _initPrinterListener() {
-    // Listen ke stream dari PrinterService
-    _printerSubscription = printerService.bluetoothStatusStream.listen((status) {
-      // BTStatus.connected dari package flutter_pos_printer...
+    _printerSubscription = printerService.bluetoothStatusStream.listen((
+      status,
+    ) {
       final isConnected = (status == BTStatus.connected);
       add(PrinterConnectionUpdated(isConnected));
     });
@@ -98,38 +105,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
   @override
   Future<void> close() {
-    _printerSubscription?.cancel(); // Wajib cancel stream agar tidak memory leak
+    _printerSubscription?.cancel();
     return super.close();
-  }
-
-  // Method Handler: Print Receipt
-  Future<void> _onPrintReceiptRequested(
-    PrintReceiptRequested event,
-    Emitter<DashboardState> emit,
-  ) async {
-    try {
-      // Pastikan ada item untuk dicetak. 
-      // Jika cart kosong (misal setelah transaksi sukses), logika ini mungkin perlu 
-      // mengambil data dari transaksi terakhir, tapi untuk saat ini kita pakai state.cartItems
-      // atau logika generateReceipt harus dimodifikasi untuk menerima list item spesifik.
-      
-      final bytes = await printerService.generateReceipt(
-        items: state.cartItems, 
-        subtotal: state.subtotal,
-        tax: state.taxValue,
-        discount: state.autoDiscount + state.manualDiscount,
-        total: state.finalTotalAmount,
-        cashierName: "Kasir", 
-        transactionId: "TRX-${DateTime.now().millisecondsSinceEpoch}",
-      );
-
-      // Kirim ke printer
-      await printerService.printReceipt(bytes);
-      
-    } catch (e) {
-      print("Print Error: $e");
-      // Opsional: Emit error state khusus printer jika perlu
-    }
   }
 
   // ================= SESSION HANDLERS =================
@@ -144,6 +121,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     final isSessionActive = prefs.getBool('dashboard_session_active') ?? false;
 
     if (isSessionActive) {
+      // [KASUS 1] Sesi Aktif (Restart App saat Login)
       emit(
         state.copyWith(
           status: DashboardStatus.success,
@@ -152,11 +130,23 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         ),
       );
 
+      // Load Data karena PIN dianggap sudah tembus sebelumnya
       add(FetchMenuRequested());
       add(FetchTaxSettingsRequested());
+      add(FetchStoreProfileRequested());
     } else {
+      // [KASUS 2] Sesi Baru (Logout / Login Baru)
+      // Gunakan DashboardState() baru agar bersih total.
       emit(
-        state.copyWith(status: DashboardStatus.success, isPinEntered: false),
+        DashboardState(
+          status: DashboardStatus.success, 
+          isPinEntered: false,             
+          hasStartingBalance: false,
+          
+          // Tanggal laporan default
+          reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
+          reportEndDate: DateTime.now(),
+        ),
       );
     }
   }
@@ -169,6 +159,26 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     await prefs.setBool('dashboard_session_active', true);
 
     emit(state.copyWith(isPinEntered: true, hasStartingBalance: true));
+
+    // [PENTING] Load data SETELAH PIN Sukses
+    add(FetchMenuRequested());
+    add(FetchTaxSettingsRequested());
+    add(FetchStoreProfileRequested());
+  }
+
+  Future<void> _onResetDashboard(
+    ResetDashboard event,
+    Emitter<DashboardState> emit,
+  ) async {
+    // 1. Hapus Status Sesi di Memory
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('dashboard_session_active');
+
+    // 2. HARD RESET STATE
+    emit(DashboardState(
+      reportStartDate: DateTime.now().subtract(const Duration(days: 30)),
+      reportEndDate: DateTime.now(),
+    ));
   }
 
   // ================= MENU HANDLERS =================
@@ -249,7 +259,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     final query = event.query.toLowerCase();
     final category = state.selectedCategory;
 
-    // 1. Ambil list dasar berdasarkan kategori saat ini
     List<ProductModel> baseList;
     if (category == 'Semua') {
       baseList = state.products;
@@ -257,7 +266,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       baseList = state.products.where((p) => p.category == category).toList();
     }
 
-    // 2. Filter berdasarkan teks pencarian
     if (query.isEmpty) {
       emit(state.copyWith(filteredProducts: baseList));
     } else {
@@ -370,7 +378,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         emit(
           state.copyWith(
             status: DashboardStatus.error,
-            errorMessage: e.toString().replaceAll("Exception: ", ""),
+            errorMessage: e.toString().replaceAll("", ""),
             appliedPromoCode: null,
             clearPromoCode: true,
           ),
@@ -391,41 +399,93 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     CreateTransactionRequested event,
     Emitter<DashboardState> emit,
   ) async {
+    // [VALIDASI SHIFT]
+    if (!state.isShiftOpen) {
+      emit(state.copyWith(
+        status: DashboardStatus.error,
+        errorMessage: "Toko sedang tutup. Silakan Buka Shift dulu.",
+      ));
+      emit(state.copyWith(status: DashboardStatus.success, errorMessage: null));
+      return;
+    }
+
     if (state.cartItems.isEmpty) return;
 
     emit(state.copyWith(status: DashboardStatus.loading));
 
     try {
+      // 1. Simpan Transaksi
       await repository.createTransaction(
         items: state.cartItems,
         paymentMethod: event.paymentMethod,
         promoCode: state.appliedPromoCode,
       );
 
-      List<QueueModel> currentQueueList = List.from(state.queueList);
+      // 2. AUTO PRINT
+      if (state.isPrinterConnected) {
+        try {
+          int total = state.finalTotalAmount;
+          int paid = event.amountPaid ?? total;
+          int change = paid - total;
+
+          // Fetch Profil Terbaru (Auto Update)
+          Map<String, dynamic> freshProfile = {};
+          try {
+            freshProfile = await repository.fetchStoreProfile();
+          } catch (_) {}
+
+          final pName = freshProfile['partner_name'] ?? state.partnerName;
+          final sName = freshProfile['branch_name'] ?? state.storeName;
+          final sAddr = freshProfile['address'] ?? state.storeAddress;
+          final sPhone = freshProfile['phone_number'] ?? state.storePhone;
+          final rHead = freshProfile['receipt_header'] ?? state.receiptHeader;
+          final rFoot = freshProfile['receipt_footer'] ?? state.receiptFooter;
+          final tName = freshProfile['tax_name'] ?? state.taxName;
+          
+          String opName = freshProfile['current_operator']?['name'] ?? state.currentOperatorName;
+          String sNameShift = freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
+
+          final bytes = await printerService.generateReceipt(
+            items: state.cartItems,
+            subtotal: state.subtotal,
+            tax: state.taxValue,
+            taxPercentage: state.taxPercentage,
+            discount: state.autoDiscount + state.manualDiscount,
+            promoCode: state.appliedPromoCode,
+            total: total,
+            partnerName: pName,
+            storeName: sName,
+            storeAddress: sAddr,
+            storePhone: sPhone,
+            receiptHeader: rHead,
+            receiptFooter: rFoot,
+            taxName: tName,
+            shiftName: sNameShift,
+            cashierName: opName,
+            transactionId: "TRX-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}",
+            paymentMethod: event.paymentMethod,
+            amountPaid: paid,
+            change: change,
+          );
+
+          await printerService.printReceipt(bytes);
+        } catch (e) {
+          print("⚠️ Gagal Auto Print: $e");
+        }
+      }
 
       if (state.editingQueue != null) {
         try {
-          final String queueId = state.editingQueue!.id;
-          if (queueId.isNotEmpty) {
-            await repository.deleteQueue(queueId);
-            currentQueueList.removeWhere((q) => q.id == queueId);
-          }
-        } catch (e) {
-          print("⚠️ Gagal hapus antrian otomatis: $e");
-        }
+          await repository.deleteQueue(state.editingQueue!.id);
+        } catch (_) {}
       }
 
       emit(
         state.copyWith(
           status: DashboardStatus.transactionSuccess,
-          // Catatan: Cart dikosongkan di sini. 
-          // Jika print dipanggil setelah ini, state.cartItems kosong.
-          // Idealnya, print dilakukan sebelum clear atau gunakan data transaksi.
           cartItems: [],
           clearEditingQueue: true,
           clearPromoCode: true,
-          queueList: currentQueueList,
           subtotal: 0,
           autoDiscount: 0,
           manualDiscount: 0,
@@ -553,6 +613,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       state.copyWith(
         cartItems: loadedItems,
         editingQueue: event.queue,
+        appliedPromoCode: null, // Reset promo jika load queue
         clearPromoCode: true,
       ),
     );
@@ -712,7 +773,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     add(FetchAllReportsRequested());
   }
 
-  // ================= TAX SETTINGS HANDLERS [READ ONLY] =================
+  // ================= TAX & PROFILE HANDLERS =================
 
   Future<void> _onFetchTaxSettings(
     FetchTaxSettingsRequested event,
@@ -733,6 +794,63 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       );
     } catch (e) {
       print("⚠️ Gagal load pajak: $e");
+    }
+  }
+
+  // [UPDATE SESUAI DOKUMENTASI v5.0] Fetch Profil Toko
+  Future<void> _onFetchStoreProfile(
+    FetchStoreProfileRequested event,
+    Emitter<DashboardState> emit,
+  ) async {
+    try {
+      final profileData = await repository.fetchStoreProfile();
+      print("📦 DATA PROFIL TOKO DARI API: $profileData");
+
+      // 1. Header Info
+      final pName = profileData['partner_name'] ?? ''; 
+      final sName = profileData['branch_name'] ?? '';
+      final sAddress = profileData['address'] ?? '';
+      final sPhone = profileData['phone_number'] ?? '';
+      final rHeader = profileData['receipt_header'] ?? '';
+      final rFooter = profileData['receipt_footer'] ?? '';
+
+      // 2. Tax Info
+      final tName = profileData['tax_name'] ?? state.taxName;
+      final tPercent = double.tryParse(profileData['tax_percentage']?.toString() ?? '0') ?? 0.0;
+
+      // 3. Operator & Shift Info
+      String opName = 'Kasir';
+      if (profileData['current_operator'] != null && profileData['current_operator'] is Map) {
+        opName = profileData['current_operator']['name'] ?? 'Kasir';
+      }
+
+      bool shiftOpen = false;
+      String sNameShift = '-'; 
+
+      if (profileData['current_shift'] != null && profileData['current_shift'] is Map) {
+        shiftOpen = profileData['current_shift']['is_open'] ?? false;
+        sNameShift = profileData['current_shift']['shift_name'] ?? '-'; 
+      }
+
+      // 4. Update State
+      emit(
+        state.copyWith(
+          partnerName: pName,
+          storeName: sName,
+          storeAddress: sAddress,
+          storePhone: sPhone,
+          receiptHeader: rHeader,
+          receiptFooter: rFooter,
+          taxName: tName,
+          taxPercentage: tPercent,
+          isTaxActive: tPercent > 0,
+          currentOperatorName: opName,
+          shiftName: sNameShift, 
+          isShiftOpen: shiftOpen,
+        ),
+      );
+    } catch (e) {
+      print("⚠️ Gagal load profil toko: $e");
     }
   }
 
@@ -761,5 +879,168 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) {
     // Set selectedReportTransaction menjadi null agar UI kembali ke placeholder
     emit(state.copyWith(selectedReportTransaction: null));
+  }
+
+  // Handler untuk ResetReportState
+  void _onResetReportState(
+    ResetReportState event,
+    Emitter<DashboardState> emit,
+  ) {
+    emit(state.copyWith(resetReportData: true));
+    add(FetchAllReportsRequested());
+  }
+
+  // Method Handler: Print Receipt (MANUAL REPRINT - DRAFT)
+  Future<void> _onPrintReceiptRequested(
+    PrintReceiptRequested event,
+    Emitter<DashboardState> emit,
+  ) async {
+    try {
+      int total = state.finalTotalAmount;
+
+      // [SOLUSI AUTO UPDATE] Fetch data terbaru dulu sebelum print
+      Map<String, dynamic> freshProfile = {};
+      try {
+        freshProfile = await repository.fetchStoreProfile();
+      } catch (e) {
+        print("⚠️ Gagal refresh profil saat print, pakai data lama: $e");
+      }
+
+      final pName = freshProfile['partner_name'] ?? state.partnerName;
+      final sName = freshProfile['branch_name'] ?? state.storeName;
+      final sAddr = freshProfile['address'] ?? state.storeAddress;
+      final sPhone = freshProfile['phone_number'] ?? state.storePhone;
+      final rHead = freshProfile['receipt_header'] ?? state.receiptHeader;
+      final rFoot = freshProfile['receipt_footer'] ?? state.receiptFooter;
+      final tName = freshProfile['tax_name'] ?? state.taxName;
+
+      String opName = freshProfile['current_operator']?['name'] ?? state.currentOperatorName;
+      String sNameShift = freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
+
+      final bytes = await printerService.generateReceipt(
+        items: state.cartItems,
+        subtotal: state.subtotal,
+        tax: state.taxValue,
+        taxPercentage: state.taxPercentage,
+        discount: state.autoDiscount + state.manualDiscount,
+        promoCode: state.appliedPromoCode,
+        total: total,
+        cashierName: opName,
+        shiftName: sNameShift,
+        partnerName: pName,
+        storeName: sName,
+        storeAddress: sAddr,
+        storePhone: sPhone,
+        receiptHeader: rHead,
+        receiptFooter: rFoot,
+        taxName: tName,
+        transactionId: "TRX-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}",
+        paymentMethod: "Draft",
+        amountPaid: total,
+        change: 0,
+      );
+
+      await printerService.printReceipt(bytes);
+    } catch (e) {
+      print("Print Error: $e");
+    }
+  }
+
+  // Method Handler: Reprint Receipt (HISTORY)
+  Future<void> _onReprintTransactionRequested(
+    ReprintTransactionRequested event,
+    Emitter<DashboardState> emit,
+  ) async {
+    if (!state.isPrinterConnected) {
+      print("⚠️ Printer belum terhubung");
+      return;
+    }
+
+    try {
+      final tx = event.transaction;
+
+      Map<String, dynamic> freshProfile = {};
+      try {
+        freshProfile = await repository.fetchStoreProfile();
+      } catch (_) {}
+
+      final pName = freshProfile['partner_name'] ?? state.partnerName;
+      final sName = freshProfile['branch_name'] ?? state.storeName;
+      final sAddr = freshProfile['address'] ?? state.storeAddress;
+      final sPhone = freshProfile['phone_number'] ?? state.storePhone;
+      final rHead = freshProfile['receipt_header'] ?? state.receiptHeader;
+      final rFoot = freshProfile['receipt_footer'] ?? state.receiptFooter;
+      final tName = freshProfile['tax_name'] ?? state.taxName;
+
+      final List<dynamic> rawItems = (tx['items'] ?? tx['transaction_details'] ?? []) as List<dynamic>;
+      List<CartItem> cartItems = [];
+
+      for (var item in rawItems) {
+        if (item is! Map) continue;
+        String name = item['product_name']?.toString() ?? item['product']?['product_name']?.toString() ?? 'Item';
+        int qty = int.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
+        double price = double.tryParse((item['price_at_transaction'] ?? item['unit_price'] ?? item['price'] ?? 0).toString()) ?? 0;
+
+        final product = ProductModel(
+          productId: '0',
+          name: name,
+          price: price.toInt(),
+          description: '-',
+          imageUrl: '',
+          category: 'General',
+          isAvailable: true,
+        );
+        cartItems.add(CartItem(product: product, quantity: qty));
+      }
+
+      double safeParse(dynamic value) => value == null ? 0.0 : double.tryParse(value.toString()) ?? 0.0;
+      final double total = safeParse(tx['total_amount']);
+      final double tax = safeParse(tx['total_tax'] ?? tx['tax_amount']);
+      final double discount = safeParse(tx['total_discount'] ?? tx['discount_amount']);
+      final double subtotal = total - tax + discount;
+
+      final String receiptNo = (tx['receipt_number'] ?? tx['transaction_number'] ?? '-').toString();
+      final String paymentMethod = (tx['payment_method'] ?? 'CASH').toString();
+      final String promoCode = (tx['promo_code'] ?? '').toString();
+
+      String cashierName = state.currentOperatorName;
+      if (tx['shift'] != null && tx['shift'] is Map && tx['shift']['cashier'] != null && tx['shift']['cashier']['full_name'] != null) {
+        cashierName = tx['shift']['cashier']['full_name'].toString();
+      } else if (tx['cashier_name'] != null) {
+        cashierName = tx['cashier_name'].toString();
+      } else if (tx['user'] != null && tx['user'] is Map && tx['user']['full_name'] != null) {
+        cashierName = tx['user']['full_name'].toString();
+      }
+
+      String shiftNameReprint = freshProfile['current_shift']?['shift_name'] ?? state.shiftName;
+
+      final bytes = await printerService.generateReceipt(
+        items: cartItems,
+        subtotal: subtotal.toInt(),
+        tax: tax.toInt(),
+        taxPercentage: state.taxPercentage,
+        discount: discount.toInt(),
+        promoCode: promoCode.isNotEmpty ? promoCode : null,
+        total: total.toInt(),
+        partnerName: pName,
+        storeName: sName,
+        storeAddress: sAddr,
+        storePhone: sPhone,
+        receiptHeader: rHead,
+        receiptFooter: rFoot,
+        taxName: tName,
+        shiftName: shiftNameReprint,
+        cashierName: cashierName,
+        transactionId: receiptNo,
+        paymentMethod: "$paymentMethod (Reprint)",
+        amountPaid: total.toInt(),
+        change: 0,
+      );
+
+      await printerService.printReceipt(bytes);
+    } catch (e, stackTrace) {
+      print("❌ Gagal Reprint: $e");
+      print(stackTrace);
+    }
   }
 }

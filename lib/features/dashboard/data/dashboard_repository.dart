@@ -16,7 +16,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/cashier/menu';
       final response = await http.get(
@@ -31,10 +31,10 @@ class DashboardRepository {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => ProductModel.fromJson(json)).toList();
       } else {
-        throw Exception('Gagal memuat menu: ${response.statusCode}');
+        throw ('Gagal memuat menu: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching menu: $e');
+      throw ('Error fetching menu: $e');
     }
   }
 
@@ -43,7 +43,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/category';
 
@@ -88,7 +88,7 @@ class DashboardRepository {
               (item) => {
                 "product_id": item.product.productId,
                 "quantity": item.quantity,
-                "item_note": item.note ,
+                "item_note": item.note,
               },
             )
             .toList(),
@@ -118,10 +118,10 @@ class DashboardRepository {
         );
         return;
       } else {
-        throw Exception(responseData['message'] ?? 'Gagal memproses transaksi');
+        throw (responseData['message'] ?? 'Gagal memproses transaksi');
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
     }
   }
 
@@ -134,7 +134,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final uri = Uri.parse('${AppConstants.apiBaseUrl}/expense');
       final request = http.MultipartRequest('POST', uri);
@@ -168,15 +168,15 @@ class DashboardRepository {
         return;
       } else {
         if (response.body.trim().startsWith('<')) {
-          throw Exception(
+          throw (
             'Server Error (HTML). Status: ${response.statusCode}',
           );
         }
         final data = jsonDecode(response.body);
-        throw Exception(data['message'] ?? 'Gagal mencatat pengeluaran');
+        throw (data['message'] ?? 'Gagal mencatat pengeluaran');
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
     }
   }
 
@@ -190,7 +190,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/queue';
 
@@ -214,10 +214,10 @@ class DashboardRepository {
         return;
       } else {
         final data = jsonDecode(response.body);
-        throw Exception(data['message'] ?? 'Gagal menyimpan antrian');
+        throw (data['message'] ?? 'Gagal menyimpan antrian');
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
     }
   }
 
@@ -226,7 +226,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/queue';
 
@@ -245,10 +245,10 @@ class DashboardRepository {
             : (body is List ? body : []);
         return data.map((json) => QueueModel.fromJson(json)).toList();
       } else {
-        throw Exception('Gagal memuat antrian: ${response.statusCode}');
+        throw ('Gagal memuat antrian: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
     }
   }
 
@@ -263,7 +263,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/queue/$id';
 
@@ -287,10 +287,10 @@ class DashboardRepository {
         return;
       } else {
         final data = jsonDecode(response.body);
-        throw Exception(data['message'] ?? 'Gagal mengupdate antrian');
+        throw (data['message'] ?? 'Gagal mengupdate antrian');
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
     }
   }
 
@@ -299,7 +299,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/transaction?search=$query';
 
@@ -320,11 +320,11 @@ class DashboardRepository {
             : (body is List ? body : []);
         return data;
       } else {
-        throw Exception('Gagal load transaksi. Status: ${response.statusCode}');
+        throw ('Gagal load transaksi. Status: ${response.statusCode}');
       }
     } catch (e) {
       print("❌ [REPO] Error: $e");
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
     }
   }
 
@@ -333,7 +333,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/transaction/current-shift';
 
@@ -358,7 +358,7 @@ class DashboardRepository {
         return [];
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
     }
   }
 
@@ -370,7 +370,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url =
           '${AppConstants.apiBaseUrl}/transaction/$transactionId/void-request';
@@ -392,10 +392,10 @@ class DashboardRepository {
         return;
       } else {
         final data = jsonDecode(response.body);
-        throw Exception(data['message'] ?? 'Gagal mengajukan void');
+        throw (data['message'] ?? 'Gagal mengajukan void');
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll(' ', ''));
     }
   }
 
@@ -448,14 +448,13 @@ class DashboardRepository {
         // Backend mengirim { summary: ..., data: ... }
         return SalesReportModel.fromJson(data);
       }
-      throw Exception('Failed to load sales report: ${response.statusCode}');
+      throw ('Failed to load sales report: ${response.statusCode}');
     } catch (e) {
       print("❌ [REPO-SALES ERROR] $e");
-      throw Exception(e.toString());
+      throw (e.toString());
     }
   }
 
-  // 12. Get Item Report (WAJIB KIRIM CASHIER ID)
   // 12. Get Item Report (WAJIB KIRIM CASHIER ID)
   Future<List<ItemReportModel>> getItemReport({
     DateTime? startDate,
@@ -500,7 +499,7 @@ class DashboardRepository {
 
       print("📥 [REPO-ITEM] Status: ${response.statusCode}");
       // Uncomment baris ini untuk melihat bentuk asli data dari backend di debug console
-      // print("📦 [REPO-ITEM] Body: ${response.body}"); 
+      // print("📦 [REPO-ITEM] Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final dynamic body = jsonDecode(response.body);
@@ -519,6 +518,7 @@ class DashboardRepository {
       return [];
     }
   }
+
   // 13. Get Expense Report (WAJIB KIRIM CASHIER ID)
   Future<ExpenseReportModel> getExpenseReport({
     DateTime? startDate,
@@ -559,10 +559,10 @@ class DashboardRepository {
         final data = jsonDecode(response.body);
         return ExpenseReportModel.fromJson(data);
       }
-      throw Exception('Failed to load expense report');
+      throw ('Failed to load expense report');
     } catch (e) {
       print("❌ [REPO-EXPENSE ERROR] $e");
-      throw Exception(e.toString());
+      throw (e.toString());
     }
   }
 
@@ -581,10 +581,10 @@ class DashboardRepository {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Gagal menghapus antrian');
+        throw ('Gagal menghapus antrian');
       }
     } catch (e) {
-      throw Exception(e.toString());
+      throw (e.toString());
     }
   }
 
@@ -615,10 +615,10 @@ class DashboardRepository {
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Gagal memuat pengaturan pajak');
+        throw ('Gagal memuat pengaturan pajak');
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll(' ', ''));
     }
   }
 
@@ -658,7 +658,7 @@ class DashboardRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(AppConstants.tokenKey);
-      if (token == null) throw Exception('Token not found.');
+      if (token == null) throw ('Token not found.');
 
       final url = '${AppConstants.apiBaseUrl}/transaction/calculate';
 
@@ -691,10 +691,40 @@ class DashboardRepository {
         return TransactionCalculationModel.fromJson(jsonResponse['data']);
       } else {
         final errorBody = jsonDecode(response.body);
-        throw Exception(errorBody['message'] ?? "Gagal menghitung transaksi");
+        throw (errorBody['message'] ?? "Gagal menghitung transaksi");
       }
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw (e.toString().replaceAll('', ''));
+    }
+  }
+
+// 19. Ambil Profil Toko & Header Struk [UPDATE: API /branch/receipt]
+  Future<Map<String, dynamic>> fetchStoreProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.tokenKey);
+      if (token == null) throw ('Token not found.');
+
+      // [PERBAIKAN PENTING] 
+      // Sesuai dokumentasi Backend v5.0, endpointnya adalah /branch/receipt
+      final url = '${AppConstants.apiBaseUrl}/branch/receipt'; 
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // API ini mengembalikan data langsung (flat)
+        return jsonDecode(response.body);
+      } else {
+        throw ('Gagal memuat profil toko: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw ('Error fetchStoreProfile: $e');
     }
   }
 }

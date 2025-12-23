@@ -261,29 +261,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(state.copyWith(status: AuthStatus.loading));
     try {
-      await repository.closeShift();
+      // 1. Ambil Data Struk
+      final receiptData = await repository.closeShift();
+      
+      // 2. Logout
       await repository.logout();
       
-      // [PERBAIKAN] Hapus Status Dashboard saat Tutup Shift
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('dashboard_session_active');
 
       _startBackgroundTimer();
 
-      emit(AuthState(
-        status: AuthStatus.unauthenticated,
-        isActivated: true,
+      // 3. Simpan Data Struk ke State
+      emit(state.copyWith(
+        status: AuthStatus.success,
         isAuthenticated: false,
         isShiftOpen: false,
         isPinValidated: false,
-        branchName: state.branchName,
-        schedules: state.schedules,
-        backgroundIndex: state.backgroundIndex,
+        closingReceipt: receiptData, // [PENTING]
       ));
     } catch (e) {
       emit(state.copyWith(
         status: AuthStatus.error, 
-        errorMessage: "Gagal Tutup Shift: ${e.toString()}",
+        errorMessage: "Gagal: ${e.toString()}",
       ));
       emit(state.copyWith(status: AuthStatus.authenticated));
     }

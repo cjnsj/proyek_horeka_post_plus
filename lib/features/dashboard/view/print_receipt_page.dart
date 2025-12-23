@@ -660,23 +660,6 @@ class _RightCartDetailState extends State<_RightCartDetail> {
           ),
         ),
       ]);
-      bytes += generator.emptyLines(1);
-      bytes += generator.row([
-        PosColumn(
-          text: 'TOTAL',
-          width: 5,
-          styles: const PosStyles(bold: true, height: PosTextSize.size2),
-        ),
-        PosColumn(
-          text: formatter.format(total),
-          width: 7,
-          styles: const PosStyles(
-            align: PosAlign.right,
-            bold: true,
-            height: PosTextSize.size2,
-          ),
-        ),
-      ]);
 
       bytes += generator.emptyLines(2);
       bytes += generator.text(
@@ -950,7 +933,7 @@ class _SummaryPanel extends StatelessWidget {
                     discountLabel,
                     discount,
                     isNegative: true,
-                    color: Colors.green,
+                    color: kTextGrey,
                   ),
                 ),
 
@@ -962,7 +945,7 @@ class _SummaryPanel extends StatelessWidget {
                     'Tax',
                     tax,
                     isPositive: true,
-                    color: Colors.red,
+                    color: kTextGrey,
                   ),
                 ),
             ],
